@@ -1,0 +1,97 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	"golang.org/x/exp/constraints"
+)
+
+type Link struct {
+	HREF string
+}
+
+type ResultLink struct {
+	Self      Link
+	Artifacts *Link `json:"omitempty"`
+}
+
+type Stage struct {
+	Links         ResultLink `json:"_links"`
+	ID            string
+	Name          string
+	ExecNode      string
+	Status        string
+	StartTime     Timestamp `json:"startTimeMillis"`
+	Duration      int       `json:"durationMillis"`
+	PauseDuration int       `json:"pauseDurationMillis"`
+}
+
+type Job struct {
+	Links         ResultLink `json:"_links"`
+	ID            string
+	Name          string
+	Status        string
+	StartTime     Timestamp `json:"startTimeMillis"`
+	EndTime       Timestamp `json:"endTimeMillis"`
+	Duration      int       `json:"durationMillis"`
+	QueueDuration int       `json:"queueDurationMillis"`
+	PauseDuration int       `json:"pauseDurationMillis"`
+	Stages        []Stage
+}
+
+type Timestamp struct {
+	time.Time
+}
+
+// UnmarshalJSON decodes an int64 timestamp into a time.Time object
+func (p *Timestamp) UnmarshalJSON(bytes []byte) error {
+	// 1. Decode the bytes into an int64
+	var raw int64
+	err := json.Unmarshal(bytes, &raw)
+
+	if err != nil {
+		fmt.Printf("error decoding timestamp: %s\n", err)
+		return err
+	}
+
+	// 2. Parse the unix timestamp
+	p.Time = time.Unix(raw, 0)
+	return nil
+}
+
+func doRequest(client *http.Client, url string, apiKey string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Basic %s", apiKey))
+
+	return client.Do(req)
+}
+
+type Number interface {
+	constraints.Float | constraints.Integer
+}
+
+func avg[T Number](data []T) float64 {
+	if len(data) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, v := range data {
+		sum += float64(v)
+	}
+	return sum / float64(len(data))
+}
+
+func fmtDuration(d time.Duration) string {
+	d = d.Round(time.Millisecond)
+	m := d / time.Minute
+	d -= m * time.Minute
+	s := d / time.Second
+	d -= s * time.Second
+	return fmt.Sprintf("%02d:%02d.%03d", m, s, d.Milliseconds())
+}
