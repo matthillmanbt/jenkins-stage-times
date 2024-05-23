@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -21,25 +22,41 @@ var (
 	user     string
 	key      string
 	pipeline string
+	filter   string
 )
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "jenkins",
 	Short: "Summarize recent Jenkins jobs",
 	Long: `Read the last 10 Jenkins jobs and summarize the
 	pipeline data.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := &http.Client{}
-		apiKey := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", viper.Get("user"), viper.Get("key"))))
+		var (
+			host = viper.Get("host")
+			user = viper.Get("user")
+			key  = viper.Get("key")
+		)
 
-		res, err := doRequest(client, fmt.Sprintf("%s/job/%s/wfapi/runs", viper.Get("host"), viper.Get("pipeline")), apiKey)
+		if host == "" {
+			return fmt.Errorf("you must provide a host")
+		}
+		if user == "" || key == "" {
+			return fmt.Errorf("you must provide both a username and an API key")
+		}
+
+		client := &http.Client{}
+		apiKey := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, key)))
+
+		res, err := doRequest(client, fmt.Sprintf("%s/job/%s/wfapi/runs", host, viper.Get("pipeline")), apiKey)
 		if err != nil {
 			return err
 		}
 		defer res.Body.Close()
 
-		var jobs []Job
+		var (
+			jobs     []Job
+			lcFilter = strings.ToLower(filter)
+		)
 		if err := json.NewDecoder(res.Body).Decode(&jobs); err != nil {
 			return err
 		}
@@ -50,8 +67,12 @@ var rootCmd = &cobra.Command{
 			if job.Status != "SUCCESS" {
 				continue
 			}
+
 			successfulJobs++
 			for _, stage := range job.Stages {
+				if lcFilter != "" && !strings.Contains(strings.ToLower(stage.Name), lcFilter) {
+					continue
+				}
 				stageMap[stage.Name] = append(stageMap[stage.Name], stage.Duration)
 			}
 		}
@@ -66,6 +87,21 @@ var rootCmd = &cobra.Command{
 			avgStage = append(avgStage, pair{stage, avg(durations)})
 		}
 
+		if len(avgStage) == 0 {
+			errRe := lipgloss.NewRenderer(os.Stderr)
+			style := errRe.NewStyle().
+				Bold(true).
+				Align(lipgloss.Center).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(lipgloss.Color("#FF0000")).
+				Padding(1, 6).
+				Width(102)
+
+			fmt.Println(style.Render("No matching, successful jobs found"))
+
+			os.Exit(1)
+		}
+
 		sort.Slice(avgStage, func(i, j int) bool {
 			return avgStage[i].Value > avgStage[j].Value
 		})
@@ -73,19 +109,14 @@ var rootCmd = &cobra.Command{
 		re := lipgloss.NewRenderer(os.Stdout)
 
 		var (
-			orange = lipgloss.Color("#FF5500")
-			gray   = lipgloss.Color("245")
-			white  = lipgloss.Color("#FFFFFF")
-			// HeaderStyle is the lipgloss style used for the table headers.
-			HeaderStyle = re.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
-			// CellStyle is the base lipgloss style used for the table rows.
-			CellStyle = re.NewStyle().Padding(0, 1).Width(50)
-			// OddRowStyle is the lipgloss style used for odd-numbered table rows.
-			OddRowStyle = CellStyle.Foreground(gray)
-			// EvenRowStyle is the lipgloss style used for even-numbered table rows.
+			orange       = lipgloss.Color("#FF5500")
+			gray         = lipgloss.Color("245")
+			white        = lipgloss.Color("#FFFFFF")
+			HeaderStyle  = re.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
+			CellStyle    = re.NewStyle().Padding(0, 1).Width(50)
+			OddRowStyle  = CellStyle.Foreground(gray)
 			EvenRowStyle = CellStyle.Foreground(white)
-			// BorderStyle is the lipgloss style used for the table border.
-			BorderStyle = lipgloss.NewStyle().Foreground(orange)
+			BorderStyle  = lipgloss.NewStyle().Foreground(orange)
 		)
 
 		t := table.New().
@@ -127,8 +158,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -138,10 +167,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 
 	viper.SetEnvPrefix("jenkins")
 
@@ -156,27 +181,24 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&pipeline, "pipeline", "master", "Jenkins pipeline to analyze")
 	viper.BindPFlag("pipeline", rootCmd.Flags().Lookup("pipeline"))
 	viper.SetDefault("pipeline", "master")
+
+	rootCmd.Flags().StringVarP(&filter, "filter", "f", "", "Filter stage list (case insensitive)")
 }
 
-// initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	if cfgFile != "" {
-		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
-		// Find home directory.
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
 
-		// Search config in home directory with name ".jenkins" (without extension).
 		viper.AddConfigPath(home)
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".jenkins")
 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
+	viper.AutomaticEnv()
 
-	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
