@@ -110,13 +110,13 @@ var rootCmd = &cobra.Command{
 
 		var (
 			orange       = lipgloss.Color("#FF5500")
-			gray         = lipgloss.Color("245")
+			gray         = lipgloss.Color("#222222")
 			white        = lipgloss.Color("#FFFFFF")
 			HeaderStyle  = re.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
-			CellStyle    = re.NewStyle().Padding(0, 1).Width(50)
-			OddRowStyle  = CellStyle.Foreground(gray)
-			EvenRowStyle = CellStyle.Foreground(white)
-			BorderStyle  = lipgloss.NewStyle().Foreground(orange)
+			CellStyle    = re.NewStyle().Padding(0, 1).Width(11).Foreground(white)
+			OddRowStyle  = re.NewStyle().Background(gray).Inherit(CellStyle)
+			EvenRowStyle = re.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
+			BorderStyle  = re.NewStyle().Foreground(orange)
 		)
 
 		t := table.New().
@@ -132,6 +132,13 @@ var rootCmd = &cobra.Command{
 					style = EvenRowStyle
 				default:
 					style = OddRowStyle
+				}
+
+				switch {
+				case col == 0:
+					style = re.NewStyle().Width(50).Inherit(style)
+				case col == 1:
+					style = re.NewStyle().Align(lipgloss.Right).Inherit(style)
 				}
 
 				return style
@@ -150,7 +157,7 @@ var rootCmd = &cobra.Command{
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Background(lipgloss.Color("#FF5500")).
 			Padding(1, 6).
-			Width(102)
+			Width(64)
 
 		fmt.Println(style.Render(fmt.Sprintf("Averages for %d stages across %d successful jobs", len(avgStage), successfulJobs)))
 
