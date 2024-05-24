@@ -22,8 +22,29 @@ var (
 	user     string
 	key      string
 	pipeline string
-	filter   string
+	filter   []string
+	Verbose  int
+
+	orange    = lipgloss.Color("#FF5500")
+	gray      = lipgloss.Color("#222222")
+	white     = lipgloss.Color("#FFFFFF")
+	red       = lipgloss.Color("#FF0000")
+	lightGray = lipgloss.Color("#888888")
+
+	verboseRenderer = lipgloss.NewRenderer(os.Stderr)
+	verboseStyle    = verboseRenderer.NewStyle().Foreground(lightGray)
 )
+
+func verbose(format string, a ...any) {
+	if Verbose == 1 {
+		fmt.Println(verboseStyle.Render(" → " + fmt.Sprintf(format, a...)))
+	}
+}
+func vVerbose(format string, a ...any) {
+	if Verbose > 1 {
+		fmt.Println(verboseStyle.Render(" → " + fmt.Sprintf(format, a...)))
+	}
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "jenkins",
@@ -32,46 +53,70 @@ var rootCmd = &cobra.Command{
 	pipeline data.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var (
-			host = viper.Get("host")
-			user = viper.Get("user")
-			key  = viper.Get("key")
+			vHost = viper.Get("host")
+			vUser = viper.Get("user")
+			vKey  = viper.Get("key")
 		)
 
-		if host == "" {
+		if vHost == "" {
 			return fmt.Errorf("you must provide a host")
 		}
-		if user == "" || key == "" {
+		verbose("Using host [%s]", host)
+		if vUser == "" || vKey == "" {
 			return fmt.Errorf("you must provide both a username and an API key")
 		}
+		verbose("Using user [%s] and key [***]", vUser)
 
 		client := &http.Client{}
-		apiKey := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, key)))
+		apiKey := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", vUser, vKey)))
 
-		res, err := doRequest(client, fmt.Sprintf("%s/job/%s/wfapi/runs", host, viper.Get("pipeline")), apiKey)
+		url := fmt.Sprintf("%s/job/%s/wfapi/runs", vHost, viper.Get("pipeline"))
+		verbose("Calling jenkins API [%s]", url)
+		res, err := doRequest(client, url, apiKey)
 		if err != nil {
+			verbose("Request error")
 			return err
 		}
 		defer res.Body.Close()
 
 		var (
 			jobs     []Job
-			lcFilter = strings.ToLower(filter)
+			lcFilter []string
 		)
+
 		if err := json.NewDecoder(res.Body).Decode(&jobs); err != nil {
+			verbose("JSON decode error")
 			return err
+		}
+
+		for _, f := range filter {
+			verbose("Appending filter to list [%s]", strings.ToLower(f))
+			lcFilter = append(lcFilter, strings.ToLower(f))
 		}
 
 		stageMap := map[string][]int{}
 		successfulJobs := 0
 		for _, job := range jobs {
 			if job.Status != "SUCCESS" {
+				verbose("Job has a status other than SUCCESS [%s][%s]", job.ID, job.Status)
 				continue
 			}
 
 			successfulJobs++
 			for _, stage := range job.Stages {
-				if lcFilter != "" && !strings.Contains(strings.ToLower(stage.Name), lcFilter) {
-					continue
+				if len(lcFilter) > 0 {
+					found := false
+					for _, f := range lcFilter {
+						if strings.Contains(strings.ToLower(stage.Name), f) {
+							vVerbose("Stage matched filter [%s][%s]", stage.Name, f)
+							found = true
+							break
+						}
+					}
+					if !found {
+						vVerbose("Stage did not match any filter [%s]", stage.Name)
+						continue
+					}
 				}
 				stageMap[stage.Name] = append(stageMap[stage.Name], stage.Duration)
 			}
@@ -87,13 +132,15 @@ var rootCmd = &cobra.Command{
 			avgStage = append(avgStage, pair{stage, avg(durations)})
 		}
 
+		verbose("Ended with [%d] stages to print", len(avgStage))
+
 		if len(avgStage) == 0 {
 			errRe := lipgloss.NewRenderer(os.Stderr)
 			style := errRe.NewStyle().
 				Bold(true).
 				Align(lipgloss.Center).
-				Foreground(lipgloss.Color("#FFFFFF")).
-				Background(lipgloss.Color("#FF0000")).
+				Foreground(white).
+				Background(red).
 				Padding(1, 6).
 				Width(102)
 
@@ -109,9 +156,6 @@ var rootCmd = &cobra.Command{
 		re := lipgloss.NewRenderer(os.Stdout)
 
 		var (
-			orange       = lipgloss.Color("#FF5500")
-			gray         = lipgloss.Color("#222222")
-			white        = lipgloss.Color("#FFFFFF")
 			HeaderStyle  = re.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
 			CellStyle    = re.NewStyle().Padding(0, 1).Width(11).Foreground(white)
 			OddRowStyle  = re.NewStyle().Background(gray).Inherit(CellStyle)
@@ -154,8 +198,8 @@ var rootCmd = &cobra.Command{
 		style := lipgloss.NewStyle().
 			Bold(true).
 			Align(lipgloss.Right).
-			Foreground(lipgloss.Color("#FFFFFF")).
-			Background(lipgloss.Color("#FF5500")).
+			Foreground(white).
+			Background(orange).
 			Padding(1, 6).
 			Width(64)
 
@@ -189,7 +233,9 @@ func init() {
 	viper.BindPFlag("pipeline", rootCmd.Flags().Lookup("pipeline"))
 	viper.SetDefault("pipeline", "master")
 
-	rootCmd.Flags().StringVarP(&filter, "filter", "f", "", "Filter stage list (case insensitive)")
+	rootCmd.PersistentFlags().CountVarP(&Verbose, "verbose", "v", "verbose output")
+
+	rootCmd.Flags().StringArrayVarP(&filter, "filter", "f", []string{}, "Filter stage list (case insensitive)")
 }
 
 func initConfig() {
