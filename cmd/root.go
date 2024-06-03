@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -25,54 +23,35 @@ var (
 	filter   []string
 	Verbose  int
 
-	orange    = lipgloss.Color("#FF5500")
-	gray      = lipgloss.Color("#222222")
-	white     = lipgloss.Color("#FFFFFF")
-	red       = lipgloss.Color("#FF0000")
-	lightGray = lipgloss.Color("#888888")
-
-	verboseRenderer = lipgloss.NewRenderer(os.Stderr)
-	verboseStyle    = verboseRenderer.NewStyle().Foreground(lightGray)
+	orange = lipgloss.Color("#FF5500")
+	gray   = lipgloss.Color("#222222")
+	white  = lipgloss.Color("#FFFFFF")
+	red    = lipgloss.Color("#FF0000")
 )
-
-func verbose(format string, a ...any) {
-	if Verbose == 1 {
-		fmt.Println(verboseStyle.Render(" → " + fmt.Sprintf(format, a...)))
-	}
-}
-func vVerbose(format string, a ...any) {
-	if Verbose > 1 {
-		fmt.Println(verboseStyle.Render(" → " + fmt.Sprintf(format, a...)))
-	}
-}
 
 var rootCmd = &cobra.Command{
 	Use:   "jenkins",
 	Short: "Summarize recent Jenkins jobs",
 	Long: `Read the last 10 Jenkins jobs and summarize the
 	pipeline data.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var (
 			vHost = viper.Get("host")
 			vUser = viper.Get("user")
 			vKey  = viper.Get("key")
 		)
-
-		if vHost == "" {
+		if vHost == nil || vHost == "" {
 			return fmt.Errorf("you must provide a host")
 		}
-		verbose("Using host [%s]", host)
-		if vUser == "" || vKey == "" {
+		if vUser == nil || vKey == nil || vUser == "" || vKey == "" {
 			return fmt.Errorf("you must provide both a username and an API key")
 		}
-		verbose("Using user [%s] and key [***]", vUser)
 
-		client := &http.Client{}
-		apiKey := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", vUser, vKey)))
-
-		url := fmt.Sprintf("%s/job/%s/wfapi/runs", vHost, viper.Get("pipeline"))
-		verbose("Calling jenkins API [%s]", url)
-		res, err := doRequest(client, url, apiKey)
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		url := fmt.Sprintf("job/%s/wfapi/runs", viper.Get("pipeline"))
+		res, err := jenkinsRequest(url)
 		if err != nil {
 			verbose("Request error")
 			return err

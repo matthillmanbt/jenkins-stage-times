@@ -3,8 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
+		"time"
 
 	"golang.org/x/exp/constraints"
 )
@@ -60,16 +59,6 @@ func (p *Timestamp) UnmarshalJSON(bytes []byte) error {
 	// 2. Parse the unix timestamp
 	p.Time = time.Unix(raw, 0)
 	return nil
-}
-
-func doRequest(client *http.Client, url string, apiKey string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Basic %s", apiKey))
-
-	return client.Do(req)
 }
 
 type Number interface {
