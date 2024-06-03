@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -101,14 +102,21 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
+		type stageTime struct {
+			Avg float64
+			Min int
+			Max int
+		}
 		type pair struct {
 			Key   string
-			Value float64
+			Value stageTime
 		}
 
 		avgStage := []pair{}
 		for stage, durations := range stageMap {
-			avgStage = append(avgStage, pair{stage, avg(durations)})
+			vVerbose("Stage [%s]", stage)
+			vVerbose("  %+v", durations)
+			avgStage = append(avgStage, pair{stage, stageTime{avg(durations), slices.Min(durations), slices.Max(durations)}})
 		}
 
 		verbose("Ended with [%d] stages to print", len(avgStage))
@@ -129,7 +137,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		sort.Slice(avgStage, func(i, j int) bool {
-			return avgStage[i].Value > avgStage[j].Value
+			return avgStage[i].Value.Avg > avgStage[j].Value.Avg
 		})
 
 		re := lipgloss.NewRenderer(os.Stdout)
@@ -160,16 +168,21 @@ var rootCmd = &cobra.Command{
 				switch {
 				case col == 0:
 					style = re.NewStyle().Width(50).Inherit(style)
-				case col == 1:
+				default:
 					style = re.NewStyle().Align(lipgloss.Right).Inherit(style)
 				}
 
 				return style
 			}).
-			Headers("STAGE", "TIME")
+			Headers("STAGE", "TIME", "MIN", "MAX")
 
 		for _, p := range avgStage {
-			t.Row(p.Key, fmtDuration(time.Duration(p.Value*1000*1000)))
+			t.Row(
+				p.Key,
+				fmtDuration(time.Duration(p.Value.Avg*1000*1000)),
+				fmtDuration(time.Duration(p.Value.Min*1000*1000)),
+				fmtDuration(time.Duration(p.Value.Max*1000*1000)),
+			)
 		}
 
 		fmt.Println(t)
@@ -180,7 +193,7 @@ var rootCmd = &cobra.Command{
 			Foreground(white).
 			Background(orange).
 			Padding(1, 6).
-			Width(64)
+			Width(2 + 50 + 3*12)
 
 		fmt.Println(style.Render(fmt.Sprintf("Averages for %d stages across %d successful jobs", len(avgStage), successfulJobs)))
 
