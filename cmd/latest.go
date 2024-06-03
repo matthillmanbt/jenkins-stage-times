@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -83,8 +83,7 @@ var latestCmd = &cobra.Command{
 		}
 
 		if latestBuild == nil {
-			fmt.Println(errStyle.Render("No builds found for %s", displayProduct))
-			os.Exit(1)
+			return errors.New(errStyle.Render("No builds found for %s", displayProduct))
 		}
 
 		style := stdRe.NewStyle().

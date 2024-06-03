@@ -1,16 +1,10 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"slices"
-	"sort"
-	"strings"
-	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -21,13 +15,7 @@ var (
 	user     string
 	key      string
 	pipeline string
-	filter   []string
 	Verbose  int
-
-	orange = lipgloss.Color("#FF5500")
-	gray   = lipgloss.Color("#222222")
-	white  = lipgloss.Color("#FFFFFF")
-	red    = lipgloss.Color("#FF0000")
 )
 
 var rootCmd = &cobra.Command{
@@ -50,150 +38,6 @@ var rootCmd = &cobra.Command{
 
 		return nil
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		url := fmt.Sprintf("job/%s/wfapi/runs", viper.Get("pipeline"))
-		res, err := jenkinsRequest(url)
-		if err != nil {
-			verbose("Request error")
-			return err
-		}
-		defer res.Body.Close()
-
-		var (
-			jobs     []Job
-			lcFilter []string
-		)
-
-		if err := json.NewDecoder(res.Body).Decode(&jobs); err != nil {
-			verbose("JSON decode error")
-			return err
-		}
-
-		for _, f := range filter {
-			verbose("Appending filter to list [%s]", strings.ToLower(f))
-			lcFilter = append(lcFilter, strings.ToLower(f))
-		}
-
-		stageMap := map[string][]int{}
-		successfulJobs := 0
-		for _, job := range jobs {
-			if job.Status != "SUCCESS" {
-				verbose("Job has a status other than SUCCESS [%s][%s]", job.ID, job.Status)
-				continue
-			}
-
-			successfulJobs++
-			for _, stage := range job.Stages {
-				if len(lcFilter) > 0 {
-					found := false
-					for _, f := range lcFilter {
-						if strings.Contains(strings.ToLower(stage.Name), f) {
-							vVerbose("Stage matched filter [%s][%s]", stage.Name, f)
-							found = true
-							break
-						}
-					}
-					if !found {
-						vVerbose("Stage did not match any filter [%s]", stage.Name)
-						continue
-					}
-				}
-				stageMap[stage.Name] = append(stageMap[stage.Name], stage.Duration)
-			}
-		}
-
-		type stageTime struct {
-			Avg float64
-			Min int
-			Max int
-		}
-		type pair struct {
-			Key   string
-			Value stageTime
-		}
-
-		avgStage := []pair{}
-		for stage, durations := range stageMap {
-			vVerbose("Stage [%s]", stage)
-			vVerbose("  %+v", durations)
-			avgStage = append(avgStage, pair{stage, stageTime{avg(durations), slices.Min(durations), slices.Max(durations)}})
-		}
-
-		verbose("Ended with [%d] stages to print", len(avgStage))
-
-		if len(avgStage) == 0 {
-			fmt.Println(errStyle.Render("No matching, successful jobs found"))
-			os.Exit(1)
-		}
-
-		sort.Slice(avgStage, func(i, j int) bool {
-			return avgStage[i].Value.Avg > avgStage[j].Value.Avg
-		})
-
-		var (
-			HeaderStyle  = stdRe.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
-			CellStyle    = stdRe.NewStyle().Padding(0, 1).Width(11).Foreground(white)
-			OddRowStyle  = stdRe.NewStyle().Background(gray).Inherit(CellStyle)
-			EvenRowStyle = stdRe.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
-			BorderStyle  = stdRe.NewStyle().Foreground(orange)
-		)
-
-		t := table.New().
-			Border(lipgloss.ThickBorder()).
-			BorderStyle(BorderStyle).
-			StyleFunc(func(row, col int) lipgloss.Style {
-				var style lipgloss.Style
-
-				switch {
-				case row == 0:
-					return HeaderStyle
-				case row%2 == 0:
-					style = EvenRowStyle
-				default:
-					style = OddRowStyle
-				}
-
-				switch {
-				case col == 0:
-					style = stdRe.NewStyle().Width(50).Inherit(style)
-				default:
-					style = stdRe.NewStyle().Align(lipgloss.Right).Inherit(style)
-				}
-
-				return style
-			}).
-			Headers("STAGE", "AVG", "MIN", "MAX")
-
-		for _, p := range avgStage {
-			t.Row(
-				p.Key,
-				fmtDuration(time.Duration(p.Value.Avg*1000*1000)),
-				fmtDuration(time.Duration(p.Value.Min*1000*1000)),
-				fmtDuration(time.Duration(p.Value.Max*1000*1000)),
-			)
-		}
-
-		fmt.Println(t)
-
-		style := stdRe.NewStyle().
-			Bold(true).
-			Align(lipgloss.Right).
-			Foreground(white).
-			Background(orange).
-			Padding(1, 6).
-			Width(2 + 50 + 3*12)
-
-		fmt.Println(style.Render(fmt.Sprintf("Times for %d stages across %d successful jobs", len(avgStage), successfulJobs)))
-
-		return nil
-	},
-}
-
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
 }
 
 func init() {
@@ -214,8 +58,6 @@ func init() {
 	viper.SetDefault("pipeline", "master")
 
 	rootCmd.PersistentFlags().CountVarP(&Verbose, "verbose", "v", "verbose output")
-
-	rootCmd.Flags().StringArrayVarP(&filter, "filter", "f", []string{}, "Filter stage list (case insensitive)")
 }
 
 func initConfig() {
@@ -234,5 +76,43 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+}
+
+func flagsContain(flags []string, contains ...string) bool {
+	for _, flag := range contains {
+		if slices.Contains(flags, flag) {
+			return true
+		}
+	}
+	return false
+}
+
+func setDefaultCommandIfNonePresent(defaultCommand string) {
+	// Taken from cobra source code in command.go::ExecuteC()
+	var cmd *cobra.Command
+	var err error
+	var flags []string
+	if rootCmd.TraverseChildren {
+		cmd, flags, err = rootCmd.Traverse(os.Args[1:])
+	} else {
+		cmd, flags, err = rootCmd.Find(os.Args[1:])
+	}
+
+	// If no command was on the CLI, then cmd will return with
+	// the value of rootCmd.Use (which would run the help output
+	// in the full Execute() command)
+	if err != nil || cmd.Use == rootCmd.Use {
+		if !flagsContain(flags, "-v", "-h", "--version", "--help") {
+			rootCmd.SetArgs(append(os.Args[1:], defaultCommand))
+		}
+	}
+}
+
+func Execute() {
+	setDefaultCommandIfNonePresent("timing")
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

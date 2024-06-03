@@ -21,6 +21,11 @@ var (
 			Background(red).
 			Padding(1, 6).
 			Width(102)
+
+	orange = lipgloss.Color("#FF5500")
+	gray   = lipgloss.Color("#222222")
+	white  = lipgloss.Color("#FFFFFF")
+	red    = lipgloss.Color("#FF0000")
 )
 
 func verbose(format string, a ...any) {
