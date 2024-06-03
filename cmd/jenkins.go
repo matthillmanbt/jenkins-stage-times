@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-		"time"
+	"time"
 
 	"golang.org/x/exp/constraints"
 )
@@ -39,6 +39,29 @@ type Job struct {
 	QueueDuration int       `json:"queueDurationMillis"`
 	PauseDuration int       `json:"pauseDurationMillis"`
 	Stages        []Stage
+}
+
+type WorkflowRun struct {
+	Class   string `json:"_class"`
+	Name    string `json:"fullDisplayName"`
+	ID      string
+	Actions []WorkflowAction
+}
+
+type WorkflowAction struct {
+	Class      string `json:"_class"`
+	Parameters []WorkflowParameter
+}
+
+type WorkflowParameter struct {
+	Class string `json:"_class"`
+	Name  string
+	Value any
+}
+
+type WorkflowJob struct {
+	Class  string `json:"_class"`
+	Builds []WorkflowRun
 }
 
 type Timestamp struct {

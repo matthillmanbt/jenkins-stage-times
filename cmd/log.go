@@ -11,6 +11,16 @@ var (
 	lightGray       = lipgloss.Color("#888888")
 	verboseRenderer = lipgloss.NewRenderer(os.Stderr)
 	verboseStyle    = verboseRenderer.NewStyle().Foreground(lightGray)
+
+	stdRe    = lipgloss.NewRenderer(os.Stdout)
+	errRe    = lipgloss.NewRenderer(os.Stderr)
+	errStyle = errRe.NewStyle().
+			Bold(true).
+			Align(lipgloss.Center).
+			Foreground(white).
+			Background(red).
+			Padding(1, 6).
+			Width(102)
 )
 
 func verbose(format string, a ...any) {

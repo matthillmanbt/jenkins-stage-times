@@ -122,17 +122,7 @@ var rootCmd = &cobra.Command{
 		verbose("Ended with [%d] stages to print", len(avgStage))
 
 		if len(avgStage) == 0 {
-			errRe := lipgloss.NewRenderer(os.Stderr)
-			style := errRe.NewStyle().
-				Bold(true).
-				Align(lipgloss.Center).
-				Foreground(white).
-				Background(red).
-				Padding(1, 6).
-				Width(102)
-
-			fmt.Println(style.Render("No matching, successful jobs found"))
-
+			fmt.Println(errStyle.Render("No matching, successful jobs found"))
 			os.Exit(1)
 		}
 
@@ -140,14 +130,12 @@ var rootCmd = &cobra.Command{
 			return avgStage[i].Value.Avg > avgStage[j].Value.Avg
 		})
 
-		re := lipgloss.NewRenderer(os.Stdout)
-
 		var (
-			HeaderStyle  = re.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
-			CellStyle    = re.NewStyle().Padding(0, 1).Width(11).Foreground(white)
-			OddRowStyle  = re.NewStyle().Background(gray).Inherit(CellStyle)
-			EvenRowStyle = re.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
-			BorderStyle  = re.NewStyle().Foreground(orange)
+			HeaderStyle  = stdRe.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
+			CellStyle    = stdRe.NewStyle().Padding(0, 1).Width(11).Foreground(white)
+			OddRowStyle  = stdRe.NewStyle().Background(gray).Inherit(CellStyle)
+			EvenRowStyle = stdRe.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
+			BorderStyle  = stdRe.NewStyle().Foreground(orange)
 		)
 
 		t := table.New().
@@ -167,9 +155,9 @@ var rootCmd = &cobra.Command{
 
 				switch {
 				case col == 0:
-					style = re.NewStyle().Width(50).Inherit(style)
+					style = stdRe.NewStyle().Width(50).Inherit(style)
 				default:
-					style = re.NewStyle().Align(lipgloss.Right).Inherit(style)
+					style = stdRe.NewStyle().Align(lipgloss.Right).Inherit(style)
 				}
 
 				return style
@@ -187,7 +175,7 @@ var rootCmd = &cobra.Command{
 
 		fmt.Println(t)
 
-		style := lipgloss.NewStyle().
+		style := stdRe.NewStyle().
 			Bold(true).
 			Align(lipgloss.Right).
 			Foreground(white).
