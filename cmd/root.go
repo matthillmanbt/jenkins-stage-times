@@ -174,7 +174,7 @@ var rootCmd = &cobra.Command{
 
 				return style
 			}).
-			Headers("STAGE", "TIME", "MIN", "MAX")
+			Headers("STAGE", "AVG", "MIN", "MAX")
 
 		for _, p := range avgStage {
 			t.Row(
@@ -195,7 +195,7 @@ var rootCmd = &cobra.Command{
 			Padding(1, 6).
 			Width(2 + 50 + 3*12)
 
-		fmt.Println(style.Render(fmt.Sprintf("Averages for %d stages across %d successful jobs", len(avgStage), successfulJobs)))
+		fmt.Println(style.Render(fmt.Sprintf("Times for %d stages across %d successful jobs", len(avgStage), successfulJobs)))
 
 		return nil
 	},
