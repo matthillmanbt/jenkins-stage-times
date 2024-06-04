@@ -26,6 +26,7 @@ var (
 	gray   = lipgloss.Color("#222222")
 	white  = lipgloss.Color("#FFFFFF")
 	red    = lipgloss.Color("#FF0000")
+	green  = lipgloss.Color("#00FF00")
 )
 
 func verbose(format string, a ...any) {

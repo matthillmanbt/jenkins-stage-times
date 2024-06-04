@@ -1,14 +1,11 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -46,40 +43,11 @@ var latestCmd = &cobra.Command{
 		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		url := fmt.Sprintf("job/%s/api/json", viper.Get("pipeline"))
-		query := map[string]string{"tree": "builds[id,fullDisplayName,actions[parameters[name,value]]]"}
-		res, err := jenkinsRequest(url, query)
+		latestBuild, err := getLatestBuild(searchProduct, branch)
+
 		if err != nil {
-			verbose("Request error")
+			verbose("latestBuild returned error")
 			return err
-		}
-		defer res.Body.Close()
-
-		var job WorkflowJob
-		if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
-			verbose("JSON decode error")
-			return err
-		}
-
-		var latestBuild *WorkflowRun
-		for _, run := range job.Builds {
-			vVerbose("Build %s", run.ID)
-			for _, action := range run.Actions {
-				if len(action.Parameters) > 0 {
-					bIdx := slices.IndexFunc(action.Parameters, func(p WorkflowParameter) bool { return p.Name == "TRYMAX_BRANCH" })
-					pIdx := slices.IndexFunc(action.Parameters, func(p WorkflowParameter) bool { return p.Name == "PRODUCT" })
-					vVerbose("  %d = %v", bIdx, action.Parameters[bIdx].Value)
-					vVerbose("  %d = %v", pIdx, action.Parameters[pIdx].Value)
-					if action.Parameters[pIdx].Value == searchProduct && action.Parameters[bIdx].Value == branch {
-						latestBuild = &run
-						break
-					}
-				}
-			}
-
-			if latestBuild != nil {
-				break
-			}
 		}
 
 		if latestBuild == nil {
