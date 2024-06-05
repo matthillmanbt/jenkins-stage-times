@@ -8,6 +8,10 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+func Ptr[Value any](v Value) *Value {
+	return &v
+}
+
 type Timestamp struct {
 	time.Time
 }

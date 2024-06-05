@@ -17,12 +17,14 @@ import (
 
 var (
 	filter []string
+	useAnd bool
 )
 
 func init() {
 	rootCmd.AddCommand(timingCmd)
 
 	timingCmd.Flags().StringArrayVarP(&filter, "filter", "f", []string{}, "Filter stage list (case insensitive)")
+	timingCmd.Flags().BoolVarP(&useAnd, "and", "", false, "Combine filters with 'and' instead of 'or'")
 }
 
 var timingCmd = &cobra.Command{
@@ -65,16 +67,22 @@ var timingCmd = &cobra.Command{
 			successfulJobs++
 			for _, stage := range job.Stages {
 				if len(lcFilter) > 0 {
-					found := false
+					var found *bool
 					for _, f := range lcFilter {
 						if strings.Contains(strings.ToLower(stage.Name), f) {
 							vVerbose("Stage matched filter [%s][%s]", stage.Name, f)
-							found = true
-							break
+							if !useAnd {
+								found = Ptr(true)
+								break
+							} else if found == nil {
+								found = Ptr(true)
+							}
+						} else {
+							found = Ptr(false)
 						}
 					}
-					if !found {
-						vVerbose("Stage did not match any filter [%s]", stage.Name)
+					if found == nil || !*found {
+						vVerbose("Stage did not match any filter [%s][%v]", stage.Name, useAnd)
 						continue
 					}
 				}
