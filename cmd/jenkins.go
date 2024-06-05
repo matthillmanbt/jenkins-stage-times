@@ -77,6 +77,7 @@ type WorkflowJob struct {
 func getLatestBuild(productFilter string, branchFilter string) (*WorkflowRun, error) {
 	url := fmt.Sprintf("job/%s/api/json", viper.Get("pipeline"))
 	query := map[string]string{"tree": "builds[id,fullDisplayName,actions[parameters[name,value]]]"}
+	verbose("getLatestBuild([%s], [%+v])", url, query)
 	res, err := jenkinsRequest(url, query)
 	if err != nil {
 		verbose("Request error")
@@ -116,6 +117,7 @@ func getLatestBuild(productFilter string, branchFilter string) (*WorkflowRun, er
 
 func getBuildInfo(buildID string) (*WorkflowRun, error) {
 	url := fmt.Sprintf("job/%s/%s/api/json", viper.Get("pipeline"), buildID)
+	verbose("getBuildInfo([%s])", url)
 	res, err := jenkinsRequest(url)
 	if err != nil {
 		verbose("Request error")
