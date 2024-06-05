@@ -15,7 +15,7 @@ func jenkinsRequest(path string, query ...map[string]string) (*http.Response, er
 		vKey  = viper.Get("key")
 	)
 
-	verbose("Using host [%s]", host)
+	verbose("Using host [%s]", vHost)
 	verbose("Using user [%s] and key [***]", vUser)
 
 	client := &http.Client{}
