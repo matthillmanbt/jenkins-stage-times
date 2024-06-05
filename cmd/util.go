@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"time"
 
 	"golang.org/x/exp/constraints"
@@ -55,3 +57,40 @@ func fmtDuration(d time.Duration) string {
 	d -= s * time.Second
 	return fmt.Sprintf("%02d:%02d.%03d", m, s, d.Milliseconds())
 }
+
+var childEnv = "__IS_CHILD"
+
+func SpawnBG(args ...string) *exec.Cmd {
+	cmdString := os.Args[0]
+	if cmdString == "go" {
+		args = append([]string{os.Args[1], os.Args[2]}, args...)
+	}
+	cmd := exec.Command(os.Args[0], args...)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("%v=%v", childEnv, 1))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	verbose("spawning command [%v]", cmd.Args)
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+
+	return cmd
+}
+
+// func getNumFileDescriptors() (int, error) {
+// 	pid := os.Getpid()
+// 	fds, err := os.Open(fmt.Sprintf("/proc/%d/fd", pid))
+
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	defer fds.Close()
+
+// 	files, err := fds.Readdirnames(-1)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+
+// 	return len(files), nil
+// }

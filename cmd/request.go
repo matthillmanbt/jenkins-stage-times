@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var client = &http.Client{}
+
 func jenkinsRequest(path string, query ...map[string]string) (*http.Response, error) {
 	var (
 		vHost = viper.Get("host")
@@ -18,7 +20,6 @@ func jenkinsRequest(path string, query ...map[string]string) (*http.Response, er
 	verbose("Using host [%s]", vHost)
 	verbose("Using user [%s] and key [***]", vUser)
 
-	client := &http.Client{}
 	apiKey := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", vUser, vKey)))
 
 	url := fmt.Sprintf("%s/%s", vHost, path)

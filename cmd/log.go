@@ -29,13 +29,15 @@ var (
 	green  = lipgloss.Color("#00FF00")
 )
 
+var vPrefix = fmt.Sprintf(" →(%d) ", os.Getpid())
+
 func verbose(format string, a ...any) {
 	if Verbose == 1 {
-		fmt.Println(verboseStyle.Render(" → " + fmt.Sprintf(format, a...)))
+		fmt.Println(verboseStyle.Render(vPrefix + fmt.Sprintf(format, a...)))
 	}
 }
 func vVerbose(format string, a ...any) {
 	if Verbose > 1 {
-		fmt.Println(verboseStyle.Render(" → " + fmt.Sprintf(format, a...)))
+		fmt.Println(verboseStyle.Render(vPrefix + fmt.Sprintf(format, a...)))
 	}
 }
