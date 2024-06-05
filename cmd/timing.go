@@ -142,7 +142,7 @@ var timingCmd = &cobra.Command{
 
 				switch {
 				case col == 0:
-					style = stdRe.NewStyle().Width(50).Inherit(style)
+					style = stdRe.NewStyle().Inline(true).Width(60).Inherit(style)
 				default:
 					style = stdRe.NewStyle().Align(lipgloss.Right).Inherit(style)
 				}
@@ -168,7 +168,7 @@ var timingCmd = &cobra.Command{
 			Foreground(white).
 			Background(orange).
 			Padding(1, 6).
-			Width(2 + 50 + 3*12)
+			Width(2 + 60 + 3*12)
 
 		fmt.Println(style.Render(fmt.Sprintf("Times for %d stages across %d successful jobs", len(avgStage), successfulJobs)))
 
