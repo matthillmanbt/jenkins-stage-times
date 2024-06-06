@@ -61,11 +61,11 @@ func fmtDuration(d time.Duration) string {
 var childEnv = "__IS_CHILD"
 
 func SpawnBG(args ...string) *exec.Cmd {
-	cmdString := os.Args[0]
-	if cmdString == "go" {
-		args = append([]string{os.Args[1], os.Args[2]}, args...)
-	}
-	cmd := exec.Command(os.Args[0], args...)
+	return Spawn(os.Args[0], args...)
+}
+
+func Spawn(command string, args ...string) *exec.Cmd {
+	cmd := exec.Command(command, args...)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("%v=%v", childEnv, 1))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
