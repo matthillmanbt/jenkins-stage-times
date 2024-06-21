@@ -37,6 +37,14 @@ var (
 	jobRE = regexp.MustCompile(`^/job/[^/]+/(\d+)/`)
 )
 
+var (
+	HeaderStyle  = orangeStyle.Bold(true).Align(lipgloss.Center)
+	CellStyle    = textStyle.Padding(0, 1).Width(11)
+	OddRowStyle  = stdRe.NewStyle().Background(gray).Inherit(CellStyle)
+	EvenRowStyle = stdRe.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
+	BorderStyle  = orangeStyle
+)
+
 func init() {
 	rootCmd.AddCommand(timingCmd)
 
@@ -139,14 +147,6 @@ func printStageTable(stageMap map[string][]Stage) {
 		return avgStage[i].Value.Avg > avgStage[j].Value.Avg
 	})
 
-	var (
-		HeaderStyle  = stdRe.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
-		CellStyle    = stdRe.NewStyle().Padding(0, 1).Width(11).Foreground(white)
-		OddRowStyle  = stdRe.NewStyle().Background(gray).Inherit(CellStyle)
-		EvenRowStyle = stdRe.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
-		BorderStyle  = stdRe.NewStyle().Foreground(orange)
-	)
-
 	t := table.New().
 		Border(lipgloss.ThickBorder()).
 		BorderStyle(BorderStyle).
@@ -205,14 +205,6 @@ func printLongestStageTable(stageMap map[string][]Stage) {
 		return longestStages[i].Value.Duration > longestStages[j].Value.Duration
 	})
 
-	var (
-		HeaderStyle  = stdRe.NewStyle().Foreground(orange).Bold(true).Align(lipgloss.Center)
-		CellStyle    = stdRe.NewStyle().Padding(0, 1).Foreground(white)
-		OddRowStyle  = stdRe.NewStyle().Background(gray).Inherit(CellStyle)
-		EvenRowStyle = stdRe.NewStyle().Background(lipgloss.NoColor{}).Inherit(CellStyle)
-		BorderStyle  = stdRe.NewStyle().Foreground(orange)
-	)
-
 	t := table.New().
 		Border(lipgloss.ThickBorder()).
 		BorderStyle(BorderStyle).
@@ -252,12 +244,8 @@ func printLongestStageTable(stageMap map[string][]Stage) {
 }
 
 func printSummary(stageCount int, jobCount int) {
-	style := stdRe.NewStyle().
-		Bold(true).
+	style := infoBoxStyle.
 		Align(lipgloss.Right).
-		Foreground(white).
-		Background(orange).
-		Padding(1, 6).
 		Width(2 + STAGE_COL_WIDTH + 3*12)
 
 	fmt.Println(style.Render(fmt.Sprintf("Times for %d stages across %d successful jobs", stageCount, jobCount)))

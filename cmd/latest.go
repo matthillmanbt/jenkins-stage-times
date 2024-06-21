@@ -9,9 +9,10 @@ import (
 )
 
 var (
-	isRS   bool
-	isPRA  bool
-	branch string
+	isRS    bool
+	isPRA   bool
+	onlyNum bool
+	branch  string
 
 	searchProduct  = "ingredi"
 	displayProduct = "RS"
@@ -22,6 +23,7 @@ func init() {
 
 	latestCmd.Flags().StringVarP(&branch, "branch", "b", "master", "branch")
 
+	latestCmd.Flags().BoolVarP(&onlyNum, "", "n", false, "Only echo the build number")
 	latestCmd.Flags().BoolVarP(&isRS, "rs", "r", false, "Remote Support")
 	latestCmd.Flags().BoolVarP(&isPRA, "pra", "p", false, "PRA")
 	latestCmd.MarkFlagsOneRequired("rs", "pra")
@@ -54,13 +56,11 @@ var latestCmd = &cobra.Command{
 			return errors.New(errStyle.Render("No builds found for %s", displayProduct))
 		}
 
-		style := stdRe.NewStyle().
-			Bold(true).
-			Foreground(white).
-			Background(orange).
-			Padding(1, 6)
-
-		fmt.Println(style.Render(fmt.Sprintf("Latest build for %s on branch [%s] is %s", displayProduct, branch, latestBuild.ID)))
+		if onlyNum {
+			fmt.Println(latestBuild.ID)
+		} else {
+			fmt.Println(infoBoxStyle.Render(fmt.Sprintf("Latest build for %s on branch [%s] is %s", displayProduct, branch, latestBuild.ID)))
+		}
 
 		return nil
 	},

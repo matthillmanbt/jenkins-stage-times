@@ -5,7 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -73,11 +72,7 @@ var monitorCmd = &cobra.Command{
 			}
 		}()
 
-		style := stdRe.NewStyle().
-			Foreground(lipgloss.NoColor{})
-		infoStyle := stdRe.NewStyle().
-			Bold(true).
-			Foreground(orange)
+		infoStyle := orangeStyle.Bold(true)
 		errStyle := stdRe.NewStyle().
 			Bold(true).
 			Foreground(white).
@@ -101,7 +96,7 @@ var monitorCmd = &cobra.Command{
 					rStyle = errStyle
 				}
 				result := rStyle.Render(build.Result)
-				fmt.Println(style.Render(fmt.Sprintf("%s: The monitor for [%s] on branch [%s] is [%s]", id, name, pipeline, result)))
+				fmt.Println(noStyle.Render(fmt.Sprintf("%s: The monitor for [%s] on branch [%s] is [%s]", id, name, pipeline, result)))
 			case err := <-er:
 				return err
 			case <-done:

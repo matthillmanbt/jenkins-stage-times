@@ -13,8 +13,10 @@ type Link struct {
 }
 
 type ResultLink struct {
-	Self      Link
-	Artifacts *Link `json:"omitempty"`
+	Self Link
+	Log  Link
+	// Console   Link
+	// Artifacts Link
 }
 
 type Stage struct {
@@ -26,6 +28,9 @@ type Stage struct {
 	StartTime     Timestamp `json:"startTimeMillis"`
 	Duration      int       `json:"durationMillis"`
 	PauseDuration int       `json:"pauseDurationMillis"`
+
+	ParentNodes    []string
+	StageFlowNodes []Stage
 }
 
 type Job struct {
@@ -72,6 +77,15 @@ type WorkflowParameter struct {
 type WorkflowJob struct {
 	Class  string `json:"_class"`
 	Builds []WorkflowRun
+}
+
+type Node struct {
+	ID         string `json:"nodeId"`
+	Status     string `json:"nodeStatus"`
+	Length     int
+	HasMore    bool
+	Text       string
+	ConsoleURL string
 }
 
 func getLatestBuild(productFilter string, branchFilter string) (*WorkflowRun, error) {
