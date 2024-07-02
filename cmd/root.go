@@ -9,6 +9,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Replaced at build time by goreleaser
+var Version string = "dev"
+
 var (
 	cfgFile  string
 	host     string
@@ -23,6 +26,7 @@ var rootCmd = &cobra.Command{
 	Short: "Summarize recent Jenkins jobs",
 	Long: `Read the last 10 Jenkins jobs and summarize the
 	pipeline data.`,
+	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var (
 			vHost = viper.Get("host")
