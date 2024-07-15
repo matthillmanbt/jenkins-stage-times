@@ -75,6 +75,7 @@ var (
 	}()
 
 	headStyle = infoBoxStyle.Align(lipgloss.Center).Width(90)
+	helpStyle = grayStyle.Align(lipgloss.Center).Width(90)
 )
 
 func init() {
@@ -152,7 +153,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	vVerbose("Update()")
+	vVerbose("Update() [%+#v]", msg)
 	var stages []Stage
 	if m.stage != nil {
 		stages = m.stage.StageFlowNodes
@@ -230,7 +231,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case Stage:
-		vVerbose("MSG Stage")
+		vVerbose("MSG Stage [%+#v]", msg)
 		m.stage = &msg
 		stages = m.stage.StageFlowNodes
 
@@ -275,8 +276,23 @@ func (m model) View() string {
 	s += baseStyle.Render(m.table.View()) + "\n"
 	if m.showFilter {
 		s += m.filter.View()
-	} else if m.stage == nil && len(m.filter.Value()) > 0 {
-		s += grayStyle.Render(fmt.Sprintf("Filter: %s\n", m.filter.Value()))
+	} else {
+		if m.stage == nil && len(m.filter.Value()) > 0 {
+			s += grayStyle.Render(fmt.Sprintf("Filter: %s\n", m.filter.Value()))
+		}
+		helpString := "n/s/d: sort by column"
+		if m.stage == nil {
+			helpString += " f: filter"
+			if len(m.filter.Value()) > 0 {
+				helpString += " c: clear"
+			}
+		}
+		helpString += " ⏎/→: details"
+		if m.stage != nil {
+			helpString += " ⎋/←: back"
+		}
+		helpString += " ⌃+c/q: quit"
+		s += helpStyle.Render(helpString) + "\n"
 	}
 	return s
 }
@@ -294,19 +310,21 @@ func getStageInfo(stage Stage) tea.Cmd {
 			}
 			defer res.Body.Close()
 
-			var stage Stage
-			if err := json.NewDecoder(res.Body).Decode(&stage); err != nil {
+			var stg Stage
+			if err := json.NewDecoder(res.Body).Decode(&stg); err != nil {
 				verbose("JSON decode error")
 				return err
 			}
 
-			verbose(fmt.Sprintf("\n%+v\n", stage))
-			if len(stage.StageFlowNodes) > 0 {
+			if len(stg.StageFlowNodes) > 0 {
 				vVerbose("  -> returning stage")
-				return stage
-			} else {
+				return stg
+			} else if stage.Links.Log.HREF != "" {
 				vVerbose("  -> returning getStageInfo")
-				return getStageInfo(stage)
+				return getStageInfo(stg)
+			} else {
+				vVerbose("  -> returning nil")
+				return nil
 			}
 		}
 
