@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"time"
@@ -94,3 +95,31 @@ func Spawn(command string, args ...string) *exec.Cmd {
 
 // 	return len(files), nil
 // }
+
+type URLPoller struct {
+	ticker *time.Ticker
+	url    string
+	Response <-chan *http.Response
+}
+
+func NewURLPoller(url string) *URLPoller {
+	c := make(chan *http.Response, 1)
+	p := &URLPoller{
+		ticker: time.NewTicker(time.Second * 3),
+		url:    url,
+		Response: c,
+	}
+	go p.run(c)
+	return p
+}
+
+func (p *URLPoller) run(c chan *http.Response) {
+	for ; true; <-p.ticker.C {
+		verbose("URLPoller querying URL %s", p.url)
+		if res, err := jenkinsRequest(p.url); err == nil {
+			verbose("URLPoller calling handler with response for %s", p.url)
+			c <- res
+			p.ticker.Stop()
+		}
+	}
+}

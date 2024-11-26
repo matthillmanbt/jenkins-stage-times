@@ -10,30 +10,24 @@ import (
 )
 
 var (
-	monitorIDs []string
 	doNotSpawn bool
 )
 
 func init() {
 	rootCmd.AddCommand(monitorCmd)
 
-	monitorCmd.Flags().StringArrayVarP(&monitorIDs, "build", "b", []string{}, "Build ID to monitor")
-	monitorCmd.MarkFlagRequired("build")
-
 	monitorCmd.Flags().BoolVarP(&doNotSpawn, "bg", "", false, "")
 	monitorCmd.Flags().MarkHidden("bg")
 }
 
 var monitorCmd = &cobra.Command{
-	Use:   "monitor",
-	Short: "Monitor a build and print a message when it completes of a given build ID",
+	Use:   "monitor [build_id] [...build_id]",
+	Short: "Monitor a build and print a message when it completes of a given build IDs",
 	Long:  `Query Jenkins for the status of a build given the build ID until it finishes`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !doNotSpawn {
 			buildArgs := []string{"monitor", "--bg", "--pipeline", viper.GetString("pipeline")}
-			for _, buildID := range monitorIDs {
-				buildArgs = append(buildArgs, "-b", buildID)
-			}
+			buildArgs = append(buildArgs, args...)
 			verbose("Spawning and passing args [%+v]", buildArgs)
 			cmd := SpawnBG(buildArgs...)
 
@@ -48,7 +42,7 @@ var monitorCmd = &cobra.Command{
 		go func() {
 			finished := []string{}
 			for ; true; <-ticker.C {
-				for _, buildID := range monitorIDs {
+				for _, buildID := range args {
 					if slices.Contains(finished, buildID) {
 						continue
 					}
@@ -64,8 +58,8 @@ var monitorCmd = &cobra.Command{
 						finished = append(finished, build.ID)
 					}
 				}
-				vVerbose("Looping [%d] == [%d]", len(finished), len(monitorIDs))
-				if len(finished) == len(monitorIDs) {
+				vVerbose("Looping [%d] == [%d]", len(finished), len(args))
+				if len(finished) == len(args) {
 					done <- true
 					return
 				}
