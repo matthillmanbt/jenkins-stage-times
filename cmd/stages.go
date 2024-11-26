@@ -44,7 +44,9 @@ var columns = []table.Column{
 }
 
 type model struct {
-	job   Job
+	jobs []Job
+
+	job   *Job
 	stage *Stage
 	node  *Node
 
@@ -79,27 +81,43 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(stagesCmd)
 }
 
-var testCmd = &cobra.Command{
-	Use:   "stages",
-	Short: "Show stage info for a build",
-	Long:  `Given a build ID, show all the pipeline steps for browsing and digging into logs for individual stages.`,
-	Args:  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+var stagesCmd = &cobra.Command{
+	Use:   "stages [build_id?]",
+	Short: "Show stage info for a build, or list all recent builds",
+	Long:  `Given a build ID, show all the pipeline steps for browsing and digging into logs for individual stages. If no build ID is given, a list of recent jobs will be shown.`,
+	Args:  cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		url := fmt.Sprintf("job/%s/%s/wfapi/describe", viper.Get("pipeline"), args[0])
+		url := fmt.Sprintf("job/%s/wfapi/runs", viper.Get("pipeline"))
 		res, err := jenkinsRequest(url)
 		if err != nil {
 			verbose("Request error")
 			return err
 		}
 		defer res.Body.Close()
+		var jobs []Job
 
-		var job Job
-		if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
+		if err := json.NewDecoder(res.Body).Decode(&jobs); err != nil {
 			verbose("JSON decode error")
 			return err
+		}
+
+		var job *Job
+		if len(args) > 0 {
+			url := fmt.Sprintf("job/%s/%s/wfapi/describe", viper.Get("pipeline"), args[0])
+			res, err := jenkinsRequest(url)
+			if err != nil {
+				verbose("Request error")
+				return err
+			}
+			defer res.Body.Close()
+
+			if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
+				verbose("JSON decode error")
+				return err
+			}
 		}
 
 		km := table.DefaultKeyMap()
@@ -140,7 +158,7 @@ var testCmd = &cobra.Command{
 		filter.PlaceholderStyle = grayStyle
 		filter.Cursor.Style = orangeStyle
 
-		p := tea.NewProgram(model{job: job, table: t, sort: none, filter: filter})
+		p := tea.NewProgram(model{jobs: jobs, job: job, table: t, sort: none, filter: filter})
 		if _, err := p.Run(); err != nil {
 			return err
 		}
@@ -157,7 +175,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var stages []Stage
 	if m.stage != nil {
 		stages = m.stage.StageFlowNodes
-	} else {
+	} else if m.job != nil {
 		stages = m.job.Stages
 	}
 
@@ -199,20 +217,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 
 				case "f":
-					m.showFilter = true
-					showing = true
-					m.filter.Focus()
-					m.priorVal = m.filter.Value()
+					if m.job != nil {
+						m.showFilter = true
+						showing = true
+						m.filter.Focus()
+						m.priorVal = m.filter.Value()
+					}
 
 				case "c":
 					m.filter.SetValue("")
 
 				case "esc", "left":
-					m.stage = nil
-					stages = m.job.Stages
+					if m.stage != nil {
+						m.stage = nil
+						stages = m.job.Stages
+					} else {
+						m.job = nil
+					}
 
 				case "enter", "right":
 					id := m.table.SelectedRow()[3]
+					if m.job == nil {
+						// We're showing a list of jobs
+						jIdx := slices.IndexFunc(m.jobs, func(p Job) bool { return p.ID == id })
+						return m, getJobInfo(m.jobs[jIdx])
+					}
+					// We're showing a list of stages for a given job
 					sIdx := slices.IndexFunc(stages, func(p Stage) bool { return p.ID == id })
 					return m, getStageInfo(stages[sIdx])
 				}
@@ -241,6 +271,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 		return m, tea.EnterAltScreen
 
+	case Job:
+		vVerbose("MSG Job")
+		m.job = &msg
+		stages = m.job.Stages
+
 	case tea.WindowSizeMsg:
 		vVerbose("MSG WindowSizeMsg")
 		m.size = msg
@@ -252,7 +287,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	m.sortTable(stages)
+	if m.job != nil {
+		m.sortTableStages(stages)
+	} else {
+		m.sortTableJobs(m.jobs)
+	}
 
 	if m.showFilter {
 		if !showing {
@@ -272,29 +311,55 @@ func (m model) View() string {
 	if m.node != nil {
 		return fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
 	}
-	s := headStyle.Render(fmt.Sprintf("Stages for: %s", m.job.Name)) + "\n"
+	var s string
+	if m.job != nil {
+		s += headStyle.Render(fmt.Sprintf("Stages for: %s", m.job.Name)) + "\n"
+	} else {
+		s += headStyle.Render("Recent Jobs") + "\n"
+	}
 	s += baseStyle.Render(m.table.View()) + "\n"
 	if m.showFilter {
 		s += m.filter.View()
 	} else {
-		if m.stage == nil && len(m.filter.Value()) > 0 {
+		if m.job != nil && m.stage == nil && len(m.filter.Value()) > 0 {
 			s += grayStyle.Render(fmt.Sprintf("Filter: %s\n", m.filter.Value()))
 		}
 		helpString := "n/s/d: sort by column"
-		if m.stage == nil {
+		if m.job != nil && m.stage == nil {
 			helpString += " f: filter"
 			if len(m.filter.Value()) > 0 {
 				helpString += " c: clear"
 			}
 		}
 		helpString += " ⏎/→: details"
-		if m.stage != nil {
+		if m.job != nil || m.stage != nil {
 			helpString += " ⎋/←: back"
 		}
 		helpString += " ⌃+c/q: quit"
 		s += helpStyle.Render(helpString) + "\n"
 	}
 	return s
+}
+
+func getJobInfo(job Job) tea.Cmd {
+	vVerbose("getJobInfo()")
+	return func() tea.Msg {
+		url := fmt.Sprintf("job/%s/%s/wfapi/describe", viper.Get("pipeline"), job.ID)
+		res, err := jenkinsRequest(url)
+		if err != nil {
+			verbose("Request error")
+			return err
+		}
+		defer res.Body.Close()
+
+		var job Job
+		if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
+			verbose("JSON decode error")
+			return err
+		}
+
+		return job
+	}
 }
 
 func getStageInfo(stage Stage) tea.Cmd {
@@ -329,6 +394,9 @@ func getStageInfo(stage Stage) tea.Cmd {
 		}
 
 		vVerbose("  -> no Log HREF")
+		// https://jenkins.bt3ng.com/job/master/21011/execution/node/967/log/?consoleFull
+		// https://jenkins.bt3ng.com/job/master/21011/execution/node/967/wfapi/log
+		// strings.ReplaceAll(stage.Links.Log.HREF, "/wfapi/log", "/log/?consoleFull")
 		res, err := jenkinsRequest(stage.Links.Log.HREF)
 		if err != nil {
 			verbose("Request error")
@@ -386,7 +454,35 @@ func (m *model) updateViewport() {
 	}
 }
 
-func (m *model) sortTable(stages []Stage) {
+func (m *model) sortTableJobs(jobs []Job) {
+	ls := make([]Base, len(jobs))
+	for i, v := range jobs {
+		ls[i].Links = v.Links
+		ls[i].ID = v.ID
+		ls[i].Name = v.Name
+		ls[i].Status = v.Status
+		ls[i].StartTime = v.StartTime
+		ls[i].Duration = v.Duration
+	}
+
+	m.sortTable(ls)
+}
+
+func (m *model) sortTableStages(stages []Stage) {
+	ls := make([]Base, len(stages))
+	for i, v := range stages {
+		ls[i].Links = v.Links
+		ls[i].ID = v.ID
+		ls[i].Name = v.Name
+		ls[i].Status = v.Status
+		ls[i].StartTime = v.StartTime
+		ls[i].Duration = v.Duration
+	}
+
+	m.sortTable(ls)
+}
+
+func (m *model) sortTable(stages []Base) {
 
 	rows := []table.Row{}
 
@@ -412,7 +508,7 @@ func (m *model) sortTable(stages []Stage) {
 
 	lcFilter := strings.ToLower(m.filter.Value())
 	for _, s := range stages {
-		if m.stage == nil && len(lcFilter) > 0 {
+		if m.job != nil && m.stage == nil && len(lcFilter) > 0 {
 			if strings.Contains(strings.ToLower(s.Name), lcFilter) ||
 				strings.Contains(strings.ToLower(s.Status), lcFilter) {
 				vVerbose("Stage matched filter [%s][%s]:[%s]", s.Name, s.Status, lcFilter)

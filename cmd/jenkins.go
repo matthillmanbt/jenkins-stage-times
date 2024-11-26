@@ -19,30 +19,32 @@ type ResultLink struct {
 	// Artifacts Link
 }
 
+type Base struct {
+	Links     ResultLink `json:"_links"`
+	ID        string
+	Name      string
+	Status    string
+	StartTime Timestamp `json:"startTimeMillis"`
+	Duration  int       `json:"durationMillis"`
+}
+
 type Stage struct {
-	Links         ResultLink `json:"_links"`
-	ID            string
-	Name          string
+	Base
+
 	ExecNode      string
-	Status        string
-	StartTime     Timestamp `json:"startTimeMillis"`
-	Duration      int       `json:"durationMillis"`
-	PauseDuration int       `json:"pauseDurationMillis"`
+	PauseDuration int `json:"pauseDurationMillis"`
 
 	ParentNodes    []string
 	StageFlowNodes []Stage
 }
 
 type Job struct {
-	Links         ResultLink `json:"_links"`
-	ID            string
-	Name          string
-	Status        string
-	StartTime     Timestamp `json:"startTimeMillis"`
-	EndTime       Timestamp `json:"endTimeMillis"`
-	Duration      int       `json:"durationMillis"`
-	QueueDuration int       `json:"queueDurationMillis"`
-	PauseDuration int       `json:"pauseDurationMillis"`
+	Base
+
+	EndTime Timestamp `json:"endTimeMillis"`
+
+	QueueDuration int `json:"queueDurationMillis"`
+	PauseDuration int `json:"pauseDurationMillis"`
 	Stages        []Stage
 }
 
@@ -86,6 +88,17 @@ type Node struct {
 	HasMore    bool
 	Text       string
 	ConsoleURL string
+}
+
+type ExecutableItem struct {
+	Class  string `json:"_class"`
+	Number int
+	URL    string
+}
+
+type QueueItem struct {
+	ID         string
+	Executable ExecutableItem
 }
 
 func getLatestBuild(productFilter string, branchFilter string) (*WorkflowRun, error) {
