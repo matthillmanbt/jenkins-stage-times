@@ -27,6 +27,7 @@ const (
 	name sortColumn = iota
 	status
 	duration
+	start
 	none
 )
 
@@ -34,12 +35,14 @@ var sortKeyMap = map[string]sortColumn{
 	"n": name,
 	"s": status,
 	"d": duration,
+	"t": start,
 }
 
 var columns = []table.Column{
 	{Title: "Name", Width: 50},
 	{Title: "Status", Width: 10},
 	{Title: "Duration", Width: 10},
+	{Title: "Start", Width: 10},
 	{Title: "ID", Width: 10},
 }
 
@@ -76,8 +79,8 @@ var (
 		return titleStyle.BorderStyle(b)
 	}()
 
-	headStyle = infoBoxStyle.Align(lipgloss.Center).Width(90)
-	helpStyle = grayStyle.Align(lipgloss.Center).Width(90)
+	headStyle = infoBoxStyle.Align(lipgloss.Center).Width(102)
+	helpStyle = grayStyle.Align(lipgloss.Center).Width(102)
 )
 
 func init() {
@@ -203,7 +206,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "q":
 					return m, tea.Quit
 
-				case "n", "d", "s":
+				case "n", "d", "s", "t":
 					col := sortKeyMap[msg.String()]
 					if m.sort == col {
 						if !m.asc {
@@ -236,7 +239,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 
 				case "enter", "right":
-					id := m.table.SelectedRow()[3]
+					id := m.table.SelectedRow()[4]
 					if m.job == nil {
 						// We're showing a list of jobs
 						jIdx := slices.IndexFunc(m.jobs, func(p Job) bool { return p.ID == id })
@@ -324,7 +327,7 @@ func (m model) View() string {
 		if m.job != nil && m.stage == nil && len(m.filter.Value()) > 0 {
 			s += grayStyle.Render(fmt.Sprintf("Filter: %s\n", m.filter.Value()))
 		}
-		helpString := "n/s/d: sort by column"
+		helpString := "n/s/d/t: sort by column"
 		if m.job != nil && m.stage == nil {
 			helpString += " f: filter"
 			if len(m.filter.Value()) > 0 {
@@ -500,6 +503,10 @@ func (m *model) sortTable(stages []Base) {
 			return stages[i].Duration < stages[j].Duration
 		case m.sort == duration:
 			return stages[i].Duration > stages[j].Duration
+		case m.sort == start && m.asc:
+			return stages[i].StartTime.Time.Before(stages[j].StartTime.Time)
+		case m.sort == start:
+			return stages[i].StartTime.Time.After(stages[j].StartTime.Time)
 		case m.sort == none && m.asc:
 			return stages[i].StartTime.Time.Before(stages[j].StartTime.Time)
 		}
@@ -520,6 +527,7 @@ func (m *model) sortTable(stages []Base) {
 			s.Name,
 			s.Status,
 			fmtDuration(time.Duration(s.Duration * 1000 * 1000)),
+			s.StartTime.Time.Format("15:04:05"),
 			s.ID,
 		})
 	}

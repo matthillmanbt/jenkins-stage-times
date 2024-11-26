@@ -31,7 +31,7 @@ func (p *Timestamp) UnmarshalJSON(bytes []byte) error {
 	}
 
 	// 2. Parse the unix timestamp
-	p.Time = time.Unix(raw, 0)
+	p.Time = time.Unix(raw/1000, 0)
 	return nil
 }
 
@@ -97,16 +97,16 @@ func Spawn(command string, args ...string) *exec.Cmd {
 // }
 
 type URLPoller struct {
-	ticker *time.Ticker
-	url    string
+	ticker   *time.Ticker
+	url      string
 	Response <-chan *http.Response
 }
 
 func NewURLPoller(url string) *URLPoller {
 	c := make(chan *http.Response, 1)
 	p := &URLPoller{
-		ticker: time.NewTicker(time.Second * 3),
-		url:    url,
+		ticker:   time.NewTicker(time.Second * 3),
+		url:      url,
 		Response: c,
 	}
 	go p.run(c)
