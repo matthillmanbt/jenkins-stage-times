@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"jenkins/internal/formatting"
 	"jenkins/internal/jenkins"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -176,9 +178,92 @@ func printStageDividerWithPath(index int, stage jenkins.Stage, path []string, sh
 	fmt.Println()
 }
 
+// stageFetchJob represents a stage to fetch with its context
+type stageFetchJob struct {
+	stage jenkins.Stage
+	path  []string
+}
+
+// stageFetchResult represents the result of fetching a stage
+type stageFetchResult struct {
+	stage jenkins.Stage
+	path  []string
+	err   error
+}
+
+// fetchStageWorker fetches stage details from Jenkins API
+func fetchStageWorker(jobs <-chan stageFetchJob, results chan<- stageFetchResult, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for job := range jobs {
+		res, err := jenkinsClient.Request("GET", job.stage.Links.Self.HREF)
+		if err != nil {
+			results <- stageFetchResult{err: err}
+			continue
+		}
+
+		var stage jenkins.Stage
+		if err := json.NewDecoder(res.Body).Decode(&stage); err != nil {
+			res.Body.Close()
+			results <- stageFetchResult{err: err}
+			continue
+		}
+		res.Body.Close()
+
+		results <- stageFetchResult{
+			stage: stage,
+			path:  job.path,
+			err:   nil,
+		}
+	}
+}
+
 // collectFailedLeafStages finds only the deepest failed stages (leaf nodes with logs)
+// Uses parallel fetching with a worker pool for better performance
 func collectFailedLeafStages(stages []jenkins.Stage, path []string, leaves *[]StageWithPath) {
+	const numWorkers = 10 // Number of concurrent workers
+
+	// Create jobs and results channels
+	jobs := make(chan stageFetchJob, len(stages)*2) // Buffer for all potential jobs
+	results := make(chan stageFetchResult, len(stages)*2)
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go fetchStageWorker(jobs, results, &wg)
+	}
+
+	// Queue initial jobs
 	for _, stage := range stages {
+		jobs <- stageFetchJob{
+			stage: stage,
+			path:  append([]string{}, path...), // Copy the path
+		}
+	}
+
+	// Start a goroutine to close results when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Process results and queue additional jobs for children
+	processed := 0
+	expectedJobs := len(stages)
+
+	for result := range results {
+		processed++
+
+		if result.err != nil {
+			verbose("Error fetching stage: %v", result.err)
+			if processed >= expectedJobs {
+				break
+			}
+			continue
+		}
+
+		stage := result.stage
+
 		// Check if this stage has failed children
 		hasFailedChildren := false
 		if len(stage.StageFlowNodes) > 0 {
@@ -194,31 +279,101 @@ func collectFailedLeafStages(stages []jenkins.Stage, path []string, leaves *[]St
 		if (stage.Status == "FAILED" || stage.Status == "ABORTED") && !hasFailedChildren {
 			*leaves = append(*leaves, StageWithPath{
 				Stage: stage,
-				Path:  append([]string{}, path...), // Copy the path
+				Path:  result.path,
 			})
 		}
 
-		// Recursively check children
+		// Queue child stages for processing
 		if len(stage.StageFlowNodes) > 0 {
-			newPath := append(path, stage.Name)
-			collectFailedLeafStages(stage.StageFlowNodes, newPath, leaves)
+			newPath := append(result.path, stage.Name)
+			for _, child := range stage.StageFlowNodes {
+				expectedJobs++
+				jobs <- stageFetchJob{
+					stage: child,
+					path:  append([]string{}, newPath...), // Copy the path
+				}
+			}
+		}
+
+		// If we've processed all expected jobs, we're done
+		if processed >= expectedJobs {
+			break
 		}
 	}
+
+	close(jobs)
 }
 
 // collectAllLeafStages finds all leaf stages (deepest stages with logs)
+// Uses parallel fetching with a worker pool for better performance
 func collectAllLeafStages(stages []jenkins.Stage, path []string, leaves *[]StageWithPath) {
+	const numWorkers = 10 // Number of concurrent workers
+
+	// Create jobs and results channels
+	jobs := make(chan stageFetchJob, len(stages)*2)
+	results := make(chan stageFetchResult, len(stages)*2)
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go fetchStageWorker(jobs, results, &wg)
+	}
+
+	// Queue initial jobs
 	for _, stage := range stages {
+		jobs <- stageFetchJob{
+			stage: stage,
+			path:  append([]string{}, path...), // Copy the path
+		}
+	}
+
+	// Start a goroutine to close results when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Process results and queue additional jobs for children
+	processed := 0
+	expectedJobs := len(stages)
+
+	for result := range results {
+		processed++
+
+		if result.err != nil {
+			verbose("Error fetching stage: %v", result.err)
+			if processed >= expectedJobs {
+				break
+			}
+			continue
+		}
+
+		stage := result.stage
+
 		// If this stage has no children, it's a leaf
 		if len(stage.StageFlowNodes) == 0 {
 			*leaves = append(*leaves, StageWithPath{
 				Stage: stage,
-				Path:  append([]string{}, path...), // Copy the path
+				Path:  result.path,
 			})
 		} else {
-			// Recursively check children
-			newPath := append(path, stage.Name)
-			collectAllLeafStages(stage.StageFlowNodes, newPath, leaves)
+			// Queue child stages for processing
+			newPath := append(result.path, stage.Name)
+			for _, child := range stage.StageFlowNodes {
+				expectedJobs++
+				jobs <- stageFetchJob{
+					stage: child,
+					path:  append([]string{}, newPath...), // Copy the path
+				}
+			}
+		}
+
+		// If we've processed all expected jobs, we're done
+		if processed >= expectedJobs {
+			break
 		}
 	}
+
+	close(jobs)
 }
