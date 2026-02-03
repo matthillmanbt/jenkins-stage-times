@@ -1,5 +1,6 @@
 /jenkins
 dist/
-.claude/
+.claude/*
+!.claude/skills/
 coverage.out
 *.test
