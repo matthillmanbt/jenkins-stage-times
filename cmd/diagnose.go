@@ -23,6 +23,11 @@ func init() {
 	diagnoseCmd.Flags().IntVarP(&maxLogLines, "log-lines", "l", 50, "Maximum lines of log to show per stage (0 for all)")
 }
 
+type StageWithPath struct {
+	Stage jenkins.Stage
+	Path  []string
+}
+
 var diagnoseCmd = &cobra.Command{
 	Use:   "diagnose [build_id]",
 	Short: "Analyze a build and show failed stages with logs",
@@ -64,17 +69,17 @@ var diagnoseCmd = &cobra.Command{
 		fmt.Printf("URL:      %s\n", buildInfo.URL)
 		fmt.Println()
 
-		// Collect failed stages
-		var failedStages []jenkins.Stage
-		var allStages []jenkins.Stage
-		collectFailedStages(job.Stages, &failedStages)
+		// Collect failed leaf stages with their paths
+		var failedLeaves []StageWithPath
+		var allLeaves []StageWithPath
+		collectFailedLeafStages(job.Stages, []string{}, &failedLeaves)
 		if showAllStages {
-			collectAllStages(job.Stages, &allStages)
+			collectAllLeafStages(job.Stages, []string{}, &allLeaves)
 		}
 
-		stagesToShow := failedStages
+		stagesToShow := failedLeaves
 		if showAllStages {
-			stagesToShow = allStages
+			stagesToShow = allLeaves
 		}
 
 		if len(stagesToShow) == 0 {
@@ -84,12 +89,12 @@ var diagnoseCmd = &cobra.Command{
 
 		// Show summary
 		fmt.Println(infoBoldStyle.Render("FAILED STAGES:"))
-		for i, stage := range failedStages {
-			fmt.Printf("  %d. %s (ID: %s, Duration: %s)\n",
+		for i, item := range failedLeaves {
+			fullPath := strings.Join(append(item.Path, item.Stage.Name), " > ")
+			fmt.Printf("  %d. %s (Duration: %s)\n",
 				i+1,
-				stage.Name,
-				stage.ID,
-				formatting.Duration(time.Duration(stage.Duration*int(time.Millisecond))))
+				fullPath,
+				formatting.Duration(time.Duration(item.Stage.Duration*int(time.Millisecond))))
 		}
 		fmt.Println()
 
@@ -97,17 +102,17 @@ var diagnoseCmd = &cobra.Command{
 		fmt.Println(infoBoldStyle.Render("STAGE LOGS:"))
 		fmt.Println()
 
-		for i, stage := range stagesToShow {
-			printStageDivider(i+1, stage, showAllStages)
+		for i, item := range stagesToShow {
+			printStageDividerWithPath(i+1, item.Stage, item.Path, showAllStages)
 
 			// Get log if available
-			if stage.Links.Log.HREF == "" {
+			if item.Stage.Links.Log.HREF == "" {
 				fmt.Println(grayStyle.Render("  (no log available)"))
 				fmt.Println()
 				continue
 			}
 
-			node, err := jenkinsClient.GetStageLog(stage.Links.Log.HREF)
+			node, err := jenkinsClient.GetStageLog(item.Stage.Links.Log.HREF)
 			if err != nil {
 				fmt.Println(grayStyle.Render(fmt.Sprintf("  (failed to fetch log: %v)", err)))
 				fmt.Println()
@@ -135,11 +140,12 @@ var diagnoseCmd = &cobra.Command{
 		// Print summary for AI
 		fmt.Println("═" + strings.Repeat("═", 78) + "═")
 		fmt.Println(infoBoldStyle.Render("SUMMARY FOR ANALYSIS:"))
-		fmt.Printf("  Build %s had %d failed stage(s)\n", buildID, len(failedStages))
-		if len(failedStages) > 0 {
+		fmt.Printf("  Build %s had %d failed stage(s)\n", buildID, len(failedLeaves))
+		if len(failedLeaves) > 0 {
 			fmt.Println("  Failed stages:")
-			for _, stage := range failedStages {
-				fmt.Printf("    - %s (%s)\n", stage.Name, stage.Status)
+			for _, item := range failedLeaves {
+				fullPath := strings.Join(append(item.Path, item.Stage.Name), " > ")
+				fmt.Printf("    - %s (%s)\n", fullPath, item.Stage.Status)
 			}
 		}
 		fmt.Println("═" + strings.Repeat("═", 78) + "═")
@@ -148,7 +154,9 @@ var diagnoseCmd = &cobra.Command{
 	},
 }
 
-func printStageDivider(index int, stage jenkins.Stage, showStatus bool) {
+func printStageDividerWithPath(index int, stage jenkins.Stage, path []string, showStatus bool) {
+	fullPath := strings.Join(append(path, stage.Name), " > ")
+
 	statusMarker := failureStyle.Render("✗ FAILED")
 	if stage.Status == "SUCCESS" {
 		statusMarker = successStyle.Render("✓ SUCCESS")
@@ -157,9 +165,9 @@ func printStageDivider(index int, stage jenkins.Stage, showStatus bool) {
 	}
 
 	if showStatus {
-		fmt.Println(infoBoldStyle.Render(fmt.Sprintf("─── %d. %s %s ───", index, stage.Name, statusMarker)))
+		fmt.Println(infoBoldStyle.Render(fmt.Sprintf("─── %d. %s %s ───", index, fullPath, statusMarker)))
 	} else {
-		fmt.Println(infoBoldStyle.Render(fmt.Sprintf("─── %d. %s ───", index, stage.Name)))
+		fmt.Println(infoBoldStyle.Render(fmt.Sprintf("─── %d. %s ───", index, fullPath)))
 	}
 	fmt.Println(grayStyle.Render(fmt.Sprintf("Stage ID: %s | Duration: %s | Node: %s",
 		stage.ID,
@@ -168,11 +176,49 @@ func printStageDivider(index int, stage jenkins.Stage, showStatus bool) {
 	fmt.Println()
 }
 
-func collectAllStages(stages []jenkins.Stage, all *[]jenkins.Stage) {
+// collectFailedLeafStages finds only the deepest failed stages (leaf nodes with logs)
+func collectFailedLeafStages(stages []jenkins.Stage, path []string, leaves *[]StageWithPath) {
 	for _, stage := range stages {
-		*all = append(*all, stage)
+		// Check if this stage has failed children
+		hasFailedChildren := false
 		if len(stage.StageFlowNodes) > 0 {
-			collectAllStages(stage.StageFlowNodes, all)
+			for _, child := range stage.StageFlowNodes {
+				if child.Status == "FAILED" || child.Status == "ABORTED" {
+					hasFailedChildren = true
+					break
+				}
+			}
+		}
+
+		// If this stage failed and either has no children or no failed children, it's a leaf
+		if (stage.Status == "FAILED" || stage.Status == "ABORTED") && !hasFailedChildren {
+			*leaves = append(*leaves, StageWithPath{
+				Stage: stage,
+				Path:  append([]string{}, path...), // Copy the path
+			})
+		}
+
+		// Recursively check children
+		if len(stage.StageFlowNodes) > 0 {
+			newPath := append(path, stage.Name)
+			collectFailedLeafStages(stage.StageFlowNodes, newPath, leaves)
+		}
+	}
+}
+
+// collectAllLeafStages finds all leaf stages (deepest stages with logs)
+func collectAllLeafStages(stages []jenkins.Stage, path []string, leaves *[]StageWithPath) {
+	for _, stage := range stages {
+		// If this stage has no children, it's a leaf
+		if len(stage.StageFlowNodes) == 0 {
+			*leaves = append(*leaves, StageWithPath{
+				Stage: stage,
+				Path:  append([]string{}, path...), // Copy the path
+			})
+		} else {
+			// Recursively check children
+			newPath := append(path, stage.Name)
+			collectAllLeafStages(stage.StageFlowNodes, newPath, leaves)
 		}
 	}
 }

@@ -88,9 +88,6 @@ jenkins stage-log <build_id> <stage_id> --tail 50
 
 # Get build status
 jenkins status -b <build_id>
-
-# Interactive stage browser
-jenkins stages <build_id>
 ```
 
 ### Analyze Performance
@@ -139,9 +136,6 @@ jenkins failed 5678
 
 # Get full log for specific stage
 jenkins stage-log 5678 stage-id-123
-
-# View in interactive mode
-jenkins stages 5678
 ```
 
 ## Integration with Claude Code
@@ -242,7 +236,7 @@ All commands provide:
 → Some stages don't produce logs (e.g., parallel wrappers)
 
 **"stage not found"**
-→ Use `jenkins stages <build_id>` to explore available stages
+→ Use `jenkins failed <build_id>` to list all failed stages and their IDs
 
 ## Notes
 

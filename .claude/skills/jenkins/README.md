@@ -77,7 +77,6 @@ Claude will use the appropriate jenkins commands automatically.
 | `diagnose` | Analyze failures | `jenkins diagnose 5678` |
 | `failed` | List failed stages | `jenkins failed 5678` |
 | `stage-log` | Get stage logs | `jenkins stage-log 5678 stage-id` |
-| `stages` | Interactive browser | `jenkins stages 5678` |
 | `status` | Build status | `jenkins status -b 5678` |
 | `timing` | Performance analysis | `jenkins timing --longest` |
 
@@ -214,7 +213,6 @@ fi
 
 **Build not found:**
 - Check pipeline name: `jenkins --pipeline production status -b 1234`
-- List recent builds: `jenkins stages`
 
 **Performance issues:**
 - Use `--tail` flag to limit log output: `jenkins stage-log 1234 stage-id --tail 50`
