@@ -25,6 +25,17 @@ go build -o jenkins .
 ```
 
 ### Run locally
+
+With credentials from vault:
+```bash
+# Build first
+go build -o jenkins .
+
+# Run with credentials from vault
+/Users/mhillman/.sra-con/CLI/bt vault run /Users/mhillman/.sra-con/env/jenkins.env -- ./jenkins <command>
+```
+
+Or with go run:
 ```bash
 go run main.go <command>
 ```
@@ -32,6 +43,20 @@ go run main.go <command>
 ### Install dependencies
 ```bash
 go mod tidy
+```
+
+### Run tests
+```bash
+go test ./...
+```
+
+### Test commands with real Jenkins instance
+```bash
+# Example: diagnose a build
+/Users/mhillman/.sra-con/CLI/bt vault run /Users/mhillman/.sra-con/env/jenkins.env -- ./jenkins diagnose 26841
+
+# Example: list failed stages
+/Users/mhillman/.sra-con/CLI/bt vault run /Users/mhillman/.sra-con/env/jenkins.env -- ./jenkins failed 26841
 ```
 
 ### Release
@@ -52,7 +77,10 @@ Built on Cobra with the following command structure:
 
 ### Key Commands
 - `timing`: Calculates average/min/max stage times across recent successful builds (default command)
-- `stages [build_id]`: Interactive TUI to browse builds and drill into stage logs
+- `diagnose <build_id>`: Comprehensive build failure analysis with logs from failed leaf stages
+- `failed <build_id>`: Lists all failed stages with IDs and durations
+- `stage-log <build_id> <stage_id>`: Gets console log for a specific stage (supports --tail/--head)
+- `stages [build_id]`: Interactive TUI to browse builds and drill into stage logs (NOTE: uses alt screen, not compatible with Claude CLI skill)
 - `monitor`: Real-time monitoring of Jenkins jobs
 - `push`: Triggers Jenkins builds
 - `status`: Shows current build status
