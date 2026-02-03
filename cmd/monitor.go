@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"jenkins/internal/jenkins"
 	"slices"
 	"time"
 
@@ -43,7 +44,7 @@ var monitorCmd = &cobra.Command{
 		}
 
 		er := make(chan error)
-		bld := make(chan *WorkflowRun)
+		bld := make(chan *jenkins.WorkflowRun)
 		done := make(chan bool)
 		ticker := time.NewTicker(MonitorPollInterval)
 		defer ticker.Stop()
@@ -54,7 +55,7 @@ var monitorCmd = &cobra.Command{
 					if slices.Contains(finished, buildID) {
 						continue
 					}
-					build, err := getBuildInfo(buildID)
+					build, err := jenkinsClient.GetBuildInfo(viper.GetString("pipeline"), buildID)
 					if err != nil {
 						verbose("getBuildInfo returned error")
 						er <- err

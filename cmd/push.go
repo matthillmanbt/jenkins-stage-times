@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"io"
-	"net/http"
+	"jenkins/internal/jenkins"
 	"net/url"
 	"strconv"
 	"strings"
@@ -29,7 +29,7 @@ var pushCmd = &cobra.Command{
 			if buildNumber == "pra" {
 				searchProduct = viper.GetString("products.pra.search_name")
 			}
-			latestBuild, err := getLatestBuild(searchProduct, "origin/master")
+			latestBuild, err := jenkinsClient.GetLatestBuild(viper.GetString("pipeline"), searchProduct, "origin/master")
 			if err != nil {
 				return err
 			}
@@ -45,8 +45,7 @@ var pushCmd = &cobra.Command{
 			"SUBDOMAIN":    args[1],
 		}
 		vVerbose("build-site params [%#+v]", query)
-		queryUrl := "job/build-site/buildWithParameters"
-		res, err := jenkinsRequestWithMethod(http.MethodPost, queryUrl, query)
+		res, err := jenkinsClient.TriggerBuild("build-site", query)
 		if err != nil {
 			verbose("Request error")
 			return err
@@ -73,7 +72,7 @@ var pushCmd = &cobra.Command{
 
 		for res := range p.Response {
 			defer res.Body.Close()
-			var queue QueueItem
+			var queue jenkins.QueueItem
 			if err := json.NewDecoder(res.Body).Decode(&queue); err != nil {
 				verbose("JSON decode error trying to parse build id [%v]", err)
 				break

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"jenkins/internal/jenkins"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -24,9 +25,9 @@ var statusCmd = &cobra.Command{
 	Short: "Print the status of a given build ID",
 	Long:  `Query Jenkins for the status of a build build given the build ID`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		builds := []*WorkflowRun{}
+		builds := []*jenkins.WorkflowRun{}
 		for _, buildID := range buildIDs {
-			build, err := getBuildInfo(buildID)
+			build, err := jenkinsClient.GetBuildInfo(viper.GetString("pipeline"), buildID)
 			if err != nil {
 				verbose("getBuildInfo returned error")
 				return err

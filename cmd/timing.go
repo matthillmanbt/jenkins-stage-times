@@ -1,9 +1,11 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"jenkins/internal/formatting"
+	"jenkins/internal/jenkins"
+	"jenkins/internal/util"
 	"regexp"
 	"slices"
 	"sort"
@@ -59,30 +61,20 @@ var timingCmd = &cobra.Command{
 	Long: `Read the last 10 Jenkins jobs and summarize the
 	pipeline data.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		url := fmt.Sprintf("job/%s/wfapi/runs", viper.Get("pipeline"))
-		res, err := jenkinsRequest(url)
+		jobs, err := jenkinsClient.GetJobs(viper.GetString("pipeline"))
 		if err != nil {
 			verbose("Request error")
 			return err
 		}
-		defer res.Body.Close()
 
-		var (
-			jobs     []Job
-			lcFilter []string
-		)
-
-		if err := json.NewDecoder(res.Body).Decode(&jobs); err != nil {
-			verbose("JSON decode error")
-			return err
-		}
+		var lcFilter []string
 
 		for _, f := range filter {
 			verbose("Appending filter to list [%s]", strings.ToLower(f))
 			lcFilter = append(lcFilter, strings.ToLower(f))
 		}
 
-		stageMap := map[string][]Stage{}
+		stageMap := map[string][]jenkins.Stage{}
 		successfulJobs := 0
 		for _, job := range jobs {
 			if job.Status != "SUCCESS" {
@@ -98,13 +90,13 @@ var timingCmd = &cobra.Command{
 						if strings.Contains(strings.ToLower(stage.Name), f) {
 							vVerbose("Stage matched filter [%s][%s]", stage.Name, f)
 							if !useAnd {
-								found = Ptr(true)
+								found = util.Ptr(true)
 								break
 							} else if found == nil {
-								found = Ptr(true)
+								found = util.Ptr(true)
 							}
 						} else {
-							found = Ptr(false)
+							found = util.Ptr(false)
 						}
 					}
 					if found == nil || !*found {
@@ -133,15 +125,15 @@ var timingCmd = &cobra.Command{
 	},
 }
 
-func printStageTable(stageMap map[string][]Stage) {
+func printStageTable(stageMap map[string][]jenkins.Stage) {
 	avgStage := []pair[stageTime]{}
 	for stage, stages := range stageMap {
-		durations := sliceutils.Pluck(stages, func(s Stage) *int {
+		durations := sliceutils.Pluck(stages, func(s jenkins.Stage) *int {
 			return &s.Duration
 		})
 		vVerbose("Stage [%s]", stage)
 		vVerbose("  %+v", durations)
-		avgStage = append(avgStage, pair[stageTime]{stage, stageTime{avg(durations), slices.Min(durations), slices.Max(durations)}})
+		avgStage = append(avgStage, pair[stageTime]{stage, stageTime{util.Avg(durations), slices.Min(durations), slices.Max(durations)}})
 	}
 	sort.Slice(avgStage, func(i, j int) bool {
 		return avgStage[i].Value.Avg > avgStage[j].Value.Avg
@@ -176,19 +168,19 @@ func printStageTable(stageMap map[string][]Stage) {
 	for _, p := range avgStage {
 		t.Row(
 			p.Key,
-			fmtDuration(time.Duration(p.Value.Avg*1000*1000)),
-			fmtDuration(time.Duration(p.Value.Min*1000*1000)),
-			fmtDuration(time.Duration(p.Value.Max*1000*1000)),
+			formatting.Duration(time.Duration(p.Value.Avg*1000*1000)),
+			formatting.Duration(time.Duration(p.Value.Min*1000*1000)),
+			formatting.Duration(time.Duration(p.Value.Max*1000*1000)),
 		)
 	}
 
 	fmt.Println(t)
 }
 
-func printLongestStageTable(stageMap map[string][]Stage) {
-	longestStages := []pair[Stage]{}
+func printLongestStageTable(stageMap map[string][]jenkins.Stage) {
+	longestStages := []pair[jenkins.Stage]{}
 	for stage, stages := range stageMap {
-		longest := sliceutils.Reduce(stages[1:], func(s Stage, c Stage, i int, slice []Stage) Stage {
+		longest := sliceutils.Reduce(stages[1:], func(s jenkins.Stage, c jenkins.Stage, i int, slice []jenkins.Stage) jenkins.Stage {
 			vVerbose("  [%s (%d)] > [%s (%d)]", c.ID, c.Duration, s.ID, s.Duration)
 			if c.Duration > s.Duration {
 				vVerbose("    [%s]", c.ID)
@@ -199,7 +191,7 @@ func printLongestStageTable(stageMap map[string][]Stage) {
 		}, stages[0])
 		vVerbose("Stage [%s]", stage)
 		vVerbose("  %+v", longest)
-		longestStages = append(longestStages, pair[Stage]{stage, longest})
+		longestStages = append(longestStages, pair[jenkins.Stage]{stage, longest})
 	}
 	sort.Slice(longestStages, func(i, j int) bool {
 		return longestStages[i].Value.Duration > longestStages[j].Value.Duration
@@ -235,7 +227,7 @@ func printLongestStageTable(stageMap map[string][]Stage) {
 		idMatch := jobRE.FindStringSubmatch(p.Value.Links.Self.HREF)
 		t.Row(
 			p.Key,
-			fmtDuration(time.Duration(p.Value.Duration*1000*1000)),
+			formatting.Duration(time.Duration(p.Value.Duration*1000*1000)),
 			idMatch[1],
 		)
 	}

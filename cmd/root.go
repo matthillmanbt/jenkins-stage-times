@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"jenkins/internal/jenkins"
 	"os"
 	"slices"
 
@@ -23,6 +24,9 @@ var (
 	pipeline string
 	// Verbose controls the verbosity level of logging (0=none, 1=verbose, 2=very verbose)
 	Verbose  int
+
+	// jenkinsClient is the shared Jenkins API client instance
+	jenkinsClient *jenkins.Client
 )
 
 var rootCmd = &cobra.Command{
@@ -43,6 +47,14 @@ var rootCmd = &cobra.Command{
 		if vUser == nil || vKey == nil || vUser == "" || vKey == "" {
 			return fmt.Errorf("you must provide both a username and an API key")
 		}
+
+		// Initialize Jenkins client
+		jenkinsClient = jenkins.NewClient(jenkins.Config{
+			Host:    vHost.(string),
+			User:    vUser.(string),
+			APIKey:  vKey.(string),
+			Verbose: verbose,
+		})
 
 		return nil
 	},

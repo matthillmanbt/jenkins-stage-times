@@ -49,8 +49,7 @@ var latestCmd = &cobra.Command{
 		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		latestBuild, err := getLatestBuild(searchProduct, branch)
-
+		latestBuild, err := jenkinsClient.GetLatestBuild(viper.GetString("pipeline"), searchProduct, branch)
 		if err != nil {
 			verbose("latestBuild returned error")
 			return err

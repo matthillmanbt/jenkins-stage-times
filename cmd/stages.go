@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"jenkins/internal/formatting"
+	"jenkins/internal/jenkins"
 	"slices"
 	"sort"
 	"strings"
@@ -47,11 +49,11 @@ var columns = []table.Column{
 }
 
 type model struct {
-	jobs []Job
+	jobs []jenkins.Job
 
-	job   *Job
-	stage *Stage
-	node  *Node
+	job   *jenkins.Job
+	stage *jenkins.Stage
+	node  *jenkins.Node
 
 	table table.Model
 	sort  sortColumn
@@ -93,32 +95,17 @@ var stagesCmd = &cobra.Command{
 	Long:  `Given a build ID, show all the pipeline steps for browsing and digging into logs for individual stages. If no build ID is given, a list of recent jobs will be shown.`,
 	Args:  cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		url := fmt.Sprintf("job/%s/wfapi/runs", viper.Get("pipeline"))
-		res, err := jenkinsRequest(url)
+		jobs, err := jenkinsClient.GetJobs(viper.GetString("pipeline"))
 		if err != nil {
 			verbose("Request error")
 			return err
 		}
-		defer res.Body.Close()
-		var jobs []Job
 
-		if err := json.NewDecoder(res.Body).Decode(&jobs); err != nil {
-			verbose("JSON decode error")
-			return err
-		}
-
-		var job *Job
+		var job *jenkins.Job
 		if len(args) > 0 {
-			url := fmt.Sprintf("job/%s/%s/wfapi/describe", viper.Get("pipeline"), args[0])
-			res, err := jenkinsRequest(url)
+			job, err = jenkinsClient.GetJobDetails(viper.GetString("pipeline"), args[0])
 			if err != nil {
 				verbose("Request error")
-				return err
-			}
-			defer res.Body.Close()
-
-			if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
-				verbose("JSON decode error")
 				return err
 			}
 		}
@@ -175,7 +162,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	vVerbose("Update() [%+#v]", msg)
-	var stages []Stage
+	var stages []jenkins.Stage
 	if m.stage != nil {
 		stages = m.stage.StageFlowNodes
 	} else if m.job != nil {
@@ -242,11 +229,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					id := m.table.SelectedRow()[4]
 					if m.job == nil {
 						// We're showing a list of jobs
-						jIdx := slices.IndexFunc(m.jobs, func(p Job) bool { return p.ID == id })
+						jIdx := slices.IndexFunc(m.jobs, func(p jenkins.Job) bool { return p.ID == id })
 						return m, getJobInfo(m.jobs[jIdx])
 					}
 					// We're showing a list of stages for a given job
-					sIdx := slices.IndexFunc(stages, func(p Stage) bool { return p.ID == id })
+					sIdx := slices.IndexFunc(stages, func(p jenkins.Stage) bool { return p.ID == id })
 					return m, getStageInfo(stages[sIdx])
 				}
 			}
@@ -263,18 +250,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.ExitAltScreen
 			}
 		}
-	case Stage:
+	case jenkins.Stage:
 		vVerbose("MSG Stage [%+#v]", msg)
 		m.stage = &msg
 		stages = m.stage.StageFlowNodes
 
-	case Node:
+	case jenkins.Node:
 		vVerbose("MSG Node")
 		m.node = &msg
 		m.updateViewport()
 		return m, tea.EnterAltScreen
 
-	case Job:
+	case jenkins.Job:
 		vVerbose("MSG Job")
 		m.job = &msg
 		stages = m.job.Stages
@@ -344,41 +331,33 @@ func (m model) View() string {
 	return s
 }
 
-func getJobInfo(job Job) tea.Cmd {
+func getJobInfo(job jenkins.Job) tea.Cmd {
 	vVerbose("getJobInfo()")
 	return func() tea.Msg {
-		url := fmt.Sprintf("job/%s/%s/wfapi/describe", viper.Get("pipeline"), job.ID)
-		res, err := jenkinsRequest(url)
+		job, err := jenkinsClient.GetJobDetails(viper.GetString("pipeline"), job.ID)
 		if err != nil {
 			verbose("Request error")
 			return err
 		}
-		defer res.Body.Close()
 
-		var job Job
-		if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
-			verbose("JSON decode error")
-			return err
-		}
-
-		return job
+		return *job
 	}
 }
 
-func getStageInfo(stage Stage) tea.Cmd {
+func getStageInfo(stage jenkins.Stage) tea.Cmd {
 	vVerbose("getStageInfo()")
 	return func() tea.Msg {
 		vVerbose("getStageInfo() MSG")
 		if stage.Links.Log.HREF == "" {
 			vVerbose("  -> no Log HREF")
-			res, err := jenkinsRequest(stage.Links.Self.HREF)
+			res, err := jenkinsClient.Request("GET", stage.Links.Self.HREF)
 			if err != nil {
 				verbose("Request error")
 				return nil
 			}
 			defer res.Body.Close()
 
-			var stg Stage
+			var stg jenkins.Stage
 			if err := json.NewDecoder(res.Body).Decode(&stg); err != nil {
 				verbose("JSON decode error")
 				return err
@@ -397,24 +376,14 @@ func getStageInfo(stage Stage) tea.Cmd {
 		}
 
 		vVerbose("  -> no Log HREF")
-		// https://jenkins.bt3ng.com/job/master/21011/execution/node/967/log/?consoleFull
-		// https://jenkins.bt3ng.com/job/master/21011/execution/node/967/wfapi/log
-		// strings.ReplaceAll(stage.Links.Log.HREF, "/wfapi/log", "/log/?consoleFull")
-		res, err := jenkinsRequest(stage.Links.Log.HREF)
+		node, err := jenkinsClient.GetStageLog(stage.Links.Log.HREF)
 		if err != nil {
 			verbose("Request error")
 			return nil
 		}
-		defer res.Body.Close()
-
-		var node Node
-		if err := json.NewDecoder(res.Body).Decode(&node); err != nil {
-			verbose("JSON decode error")
-			return err
-		}
 
 		vVerbose("  -> returning node")
-		return node
+		return *node
 	}
 }
 
@@ -457,8 +426,8 @@ func (m *model) updateViewport() {
 	}
 }
 
-func (m *model) sortTableJobs(jobs []Job) {
-	ls := make([]Base, len(jobs))
+func (m *model) sortTableJobs(jobs []jenkins.Job) {
+	ls := make([]jenkins.Base, len(jobs))
 	for i, v := range jobs {
 		ls[i].Links = v.Links
 		ls[i].ID = v.ID
@@ -471,8 +440,8 @@ func (m *model) sortTableJobs(jobs []Job) {
 	m.sortTable(ls)
 }
 
-func (m *model) sortTableStages(stages []Stage) {
-	ls := make([]Base, len(stages))
+func (m *model) sortTableStages(stages []jenkins.Stage) {
+	ls := make([]jenkins.Base, len(stages))
 	for i, v := range stages {
 		ls[i].Links = v.Links
 		ls[i].ID = v.ID
@@ -485,7 +454,7 @@ func (m *model) sortTableStages(stages []Stage) {
 	m.sortTable(ls)
 }
 
-func (m *model) sortTable(stages []Base) {
+func (m *model) sortTable(stages []jenkins.Base) {
 
 	rows := []table.Row{}
 
@@ -526,7 +495,7 @@ func (m *model) sortTable(stages []Base) {
 		rows = append(rows, table.Row{
 			s.Name,
 			s.Status,
-			fmtDuration(time.Duration(s.Duration * 1000 * 1000)),
+			formatting.Duration(time.Duration(s.Duration * 1000 * 1000)),
 			s.StartTime.Time.Format("15:04:05"),
 			s.ID,
 		})

@@ -1,12 +1,32 @@
-package cmd
+// Package jenkins provides types and client functionality for interacting with Jenkins APIs.
+package jenkins
 
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
-
-	"github.com/spf13/viper"
+	"time"
 )
+
+// Timestamp wraps time.Time to provide custom JSON unmarshaling for Unix millisecond timestamps
+type Timestamp struct {
+	time.Time
+}
+
+// UnmarshalJSON decodes an int64 timestamp into a time.Time object
+func (p *Timestamp) UnmarshalJSON(bytes []byte) error {
+	// 1. Decode the bytes into an int64
+	var raw int64
+	err := json.Unmarshal(bytes, &raw)
+
+	if err != nil {
+		fmt.Printf("error decoding timestamp: %s\n", err)
+		return err
+	}
+
+	// 2. Parse the unix timestamp (Jenkins uses milliseconds)
+	p.Time = time.Unix(raw/1000, 0)
+	return nil
+}
 
 // Link represents a hyperlink in Jenkins API responses
 type Link struct {
@@ -17,8 +37,6 @@ type Link struct {
 type ResultLink struct {
 	Self Link
 	Log  Link
-	// Console   Link
-	// Artifacts Link
 }
 
 // Base contains common fields shared by Job and Stage types
@@ -111,64 +129,4 @@ type ExecutableItem struct {
 type QueueItem struct {
 	ID         string
 	Executable ExecutableItem
-}
-
-func getLatestBuild(productFilter string, branchFilter string) (*WorkflowRun, error) {
-	url := fmt.Sprintf("job/%s/api/json", viper.Get("pipeline"))
-	query := map[string]string{"tree": "builds[id,fullDisplayName,actions[parameters[name,value]]]"}
-	verbose("getLatestBuild([%s], [%+v])", url, query)
-	res, err := jenkinsRequest(url, query)
-	if err != nil {
-		verbose("Request error")
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	var job WorkflowJob
-	if err := json.NewDecoder(res.Body).Decode(&job); err != nil {
-		verbose("JSON decode error")
-		return nil, err
-	}
-
-	var latestBuild *WorkflowRun
-	for _, run := range job.Builds {
-		vVerbose("Build %s", run.ID)
-		for _, action := range run.Actions {
-			if len(action.Parameters) > 0 {
-				bIdx := slices.IndexFunc(action.Parameters, func(p WorkflowParameter) bool { return p.Name == "TRYMAX_BRANCH" })
-				pIdx := slices.IndexFunc(action.Parameters, func(p WorkflowParameter) bool { return p.Name == "PRODUCT" })
-				vVerbose("  %d = %v", bIdx, action.Parameters[bIdx].Value)
-				vVerbose("  %d = %v", pIdx, action.Parameters[pIdx].Value)
-				if action.Parameters[pIdx].Value == productFilter && action.Parameters[bIdx].Value == branchFilter {
-					latestBuild = &run
-					break
-				}
-			}
-		}
-
-		if latestBuild != nil {
-			break
-		}
-	}
-
-	return latestBuild, nil
-}
-
-func getBuildInfo(buildID string) (*WorkflowRun, error) {
-	url := fmt.Sprintf("job/%s/%s/api/json", viper.Get("pipeline"), buildID)
-	verbose("getBuildInfo([%s])", url)
-	res, err := jenkinsRequest(url)
-	if err != nil {
-		verbose("Request error")
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	var run WorkflowRun
-	if err := json.NewDecoder(res.Body).Decode(&run); err != nil {
-		verbose("JSON decode error for build [%s]", buildID)
-		return nil, err
-	}
-
-	return &run, nil
 }
