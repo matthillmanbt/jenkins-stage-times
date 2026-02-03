@@ -1,3 +1,5 @@
 /jenkins
 dist/
 .claude/
+coverage.out
+*.test

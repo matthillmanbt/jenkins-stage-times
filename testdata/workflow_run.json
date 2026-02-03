@@ -1,0 +1,23 @@
+{
+  "_class": "org.jenkinsci.plugins.workflow.job.WorkflowRun",
+  "fullDisplayName": "master #1234",
+  "id": "1234",
+  "actions": [
+    {
+      "_class": "hudson.model.ParametersAction",
+      "parameters": [
+        {"_class": "hudson.model.StringParameterValue", "name": "PRODUCT", "value": "ingredi"},
+        {"_class": "hudson.model.StringParameterValue", "name": "TRYMAX_BRANCH", "value": "origin/master"}
+      ]
+    }
+  ],
+  "duration": 120000,
+  "estimatedDuration": 115000,
+  "fullDisplayName": "master #1234",
+  "displayName": "#1234",
+  "result": "SUCCESS",
+  "timestamp": 1704067200000,
+  "url": "https://jenkins.example.com/job/master/1234/",
+  "description": "Build master branch",
+  "building": false
+}

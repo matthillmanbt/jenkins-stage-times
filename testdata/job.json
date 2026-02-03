@@ -1,0 +1,46 @@
+{
+  "_links": {
+    "self": {"href": "/job/master/1234/wfapi/describe"},
+    "log": {"href": ""}
+  },
+  "id": "1234",
+  "name": "Build #1234",
+  "status": "SUCCESS",
+  "startTimeMillis": 1704067200000,
+  "durationMillis": 120000,
+  "endTimeMillis": 1704067320000,
+  "queueDurationMillis": 5000,
+  "pauseDurationMillis": 0,
+  "stages": [
+    {
+      "_links": {
+        "self": {"href": "/job/master/1234/execution/node/1/"},
+        "log": {"href": "/job/master/1234/execution/node/1/wfapi/log"}
+      },
+      "id": "1",
+      "name": "Checkout",
+      "status": "SUCCESS",
+      "startTimeMillis": 1704067205000,
+      "durationMillis": 5000,
+      "pauseDurationMillis": 0,
+      "execNode": "node1",
+      "parentNodes": [],
+      "stageFlowNodes": []
+    },
+    {
+      "_links": {
+        "self": {"href": "/job/master/1234/execution/node/2/"},
+        "log": {"href": "/job/master/1234/execution/node/2/wfapi/log"}
+      },
+      "id": "2",
+      "name": "Build",
+      "status": "SUCCESS",
+      "startTimeMillis": 1704067210000,
+      "durationMillis": 60000,
+      "pauseDurationMillis": 0,
+      "execNode": "node1",
+      "parentNodes": ["1"],
+      "stageFlowNodes": []
+    }
+  ]
+}
