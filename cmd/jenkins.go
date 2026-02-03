@@ -8,10 +8,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Link represents a hyperlink in Jenkins API responses
 type Link struct {
 	HREF string
 }
 
+// ResultLink contains navigation links for a Jenkins resource
 type ResultLink struct {
 	Self Link
 	Log  Link
@@ -19,6 +21,7 @@ type ResultLink struct {
 	// Artifacts Link
 }
 
+// Base contains common fields shared by Job and Stage types
 type Base struct {
 	Links     ResultLink `json:"_links"`
 	ID        string
@@ -28,6 +31,7 @@ type Base struct {
 	Duration  int       `json:"durationMillis"`
 }
 
+// Stage represents a pipeline stage in a Jenkins job
 type Stage struct {
 	Base
 
@@ -38,6 +42,7 @@ type Stage struct {
 	StageFlowNodes []Stage
 }
 
+// Job represents a complete Jenkins pipeline job execution
 type Job struct {
 	Base
 
@@ -48,6 +53,7 @@ type Job struct {
 	Stages        []Stage
 }
 
+// WorkflowRun represents metadata about a workflow run from Jenkins API
 type WorkflowRun struct {
 	Class   string `json:"_class"`
 	Name    string `json:"fullDisplayName"`
@@ -65,22 +71,26 @@ type WorkflowRun struct {
 	Building          bool
 }
 
+// WorkflowAction represents an action taken during a workflow run
 type WorkflowAction struct {
 	Class      string `json:"_class"`
 	Parameters []WorkflowParameter
 }
 
+// WorkflowParameter represents a parameter passed to a workflow
 type WorkflowParameter struct {
 	Class string `json:"_class"`
 	Name  string
 	Value any
 }
 
+// WorkflowJob represents a Jenkins workflow job with multiple builds
 type WorkflowJob struct {
 	Class  string `json:"_class"`
 	Builds []WorkflowRun
 }
 
+// Node represents a node in the Jenkins execution graph with console output
 type Node struct {
 	ID         string `json:"nodeId"`
 	Status     string `json:"nodeStatus"`
@@ -90,12 +100,14 @@ type Node struct {
 	ConsoleURL string
 }
 
+// ExecutableItem represents an executable item in the Jenkins queue
 type ExecutableItem struct {
 	Class  string `json:"_class"`
 	Number int
 	URL    string
 }
 
+// QueueItem represents an item in the Jenkins build queue
 type QueueItem struct {
 	ID         string
 	Executable ExecutableItem

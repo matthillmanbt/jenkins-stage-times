@@ -1,3 +1,6 @@
+// Package cmd contains all CLI commands and core application logic for jenkins-stage-times.
+// It provides commands for analyzing Jenkins pipeline execution times, monitoring builds,
+// and interacting with Jenkins APIs.
 package cmd
 
 import (
@@ -9,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Replaced at build time by goreleaser
+// Version is the application version, replaced at build time by goreleaser
 var Version string = "dev"
 
 var (
@@ -18,6 +21,7 @@ var (
 	user     string
 	key      string
 	pipeline string
+	// Verbose controls the verbosity level of logging (0=none, 1=verbose, 2=very verbose)
 	Verbose  int
 )
 
@@ -60,6 +64,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&pipeline, "pipeline", "master", "Jenkins pipeline to analyze")
 	viper.BindPFlag("pipeline", rootCmd.PersistentFlags().Lookup("pipeline"))
 	viper.SetDefault("pipeline", "master")
+
+	// Product configuration defaults (can be overridden in config file)
+	viper.SetDefault("products.rs.search_name", "ingredi")
+	viper.SetDefault("products.rs.display_name", "RS")
+	viper.SetDefault("products.pra.search_name", "bpam")
+	viper.SetDefault("products.pra.display_name", "PRA")
+	viper.SetDefault("deployment.domain", "dev.bomgar.com")
 
 	rootCmd.PersistentFlags().CountVarP(&Verbose, "verbose", "v", "verbose output")
 }
@@ -113,6 +124,7 @@ func setDefaultCommandIfNonePresent(defaultCommand string) {
 	}
 }
 
+// Execute runs the root command. This is called by main.main().
 func Execute() {
 	setDefaultCommandIfNonePresent("timing")
 	if err := rootCmd.Execute(); err != nil {

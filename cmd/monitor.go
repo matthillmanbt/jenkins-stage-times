@@ -9,6 +9,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	// MonitorPollInterval is how often to check build status
+	MonitorPollInterval = 5 * time.Second
+)
+
 var (
 	doNotSpawn bool
 )
@@ -29,7 +34,10 @@ var monitorCmd = &cobra.Command{
 			buildArgs := []string{"monitor", "--bg", "--pipeline", viper.GetString("pipeline")}
 			buildArgs = append(buildArgs, args...)
 			verbose("Spawning and passing args [%+v]", buildArgs)
-			cmd := SpawnBG(buildArgs...)
+			cmd, err := SpawnBG(buildArgs...)
+			if err != nil {
+				return err
+			}
 
 			return cmd.Wait()
 		}
@@ -37,7 +45,7 @@ var monitorCmd = &cobra.Command{
 		er := make(chan error)
 		bld := make(chan *WorkflowRun)
 		done := make(chan bool)
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(MonitorPollInterval)
 		defer ticker.Stop()
 		go func() {
 			finished := []string{}
@@ -66,28 +74,18 @@ var monitorCmd = &cobra.Command{
 			}
 		}()
 
-		infoStyle := orangeStyle.Bold(true)
-		errStyle := stdRe.NewStyle().
-			Bold(true).
-			Foreground(white).
-			Background(red)
-		successStyle := stdRe.NewStyle().
-			Bold(true).
-			Foreground(white).
-			Background(green)
-
-		pipeline := infoStyle.Render(viper.GetString("pipeline"))
+		pipeline := infoBoldStyle.Render(viper.GetString("pipeline"))
 
 		for {
 			select {
 			case build := <-bld:
-				id := infoStyle.Render(build.ID)
-				name := infoStyle.Render(build.DisplayName)
-				rStyle := infoStyle
+				id := infoBoldStyle.Render(build.ID)
+				name := infoBoldStyle.Render(build.DisplayName)
+				rStyle := infoBoldStyle
 				if build.Result == "SUCCESS" {
 					rStyle = successStyle
 				} else if build.Result == "FAILURE" {
-					rStyle = errStyle
+					rStyle = failureStyle
 				}
 				result := rStyle.Render(build.Result)
 				fmt.Println(noStyle.Render(fmt.Sprintf("%s: The monitor for [%s] on branch [%s] is [%s]", id, name, pipeline, result)))

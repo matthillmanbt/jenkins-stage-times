@@ -13,6 +13,13 @@ import (
 
 var client = &http.Client{}
 
+// closeBody is a helper to safely close response bodies and log errors
+func closeBody(body io.Closer) {
+	if err := body.Close(); err != nil {
+		verbose("warning: failed to close response body: %v", err)
+	}
+}
+
 func jenkinsRequest(path string, query ...map[string]string) (*http.Response, error) {
 	return jenkinsRequestWithMethod(http.MethodGet, path, query...)
 }

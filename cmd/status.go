@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -39,32 +38,18 @@ var statusCmd = &cobra.Command{
 			return builds[i].ID < builds[j].ID
 		})
 
-		style := stdRe.NewStyle().
-			Foreground(lipgloss.NoColor{})
-		infoStyle := stdRe.NewStyle().
-			Bold(true).
-			Foreground(orange)
-		errStyle := stdRe.NewStyle().
-			Bold(true).
-			Foreground(white).
-			Background(red)
-		successStyle := stdRe.NewStyle().
-			Bold(true).
-			Foreground(white).
-			Background(green)
-
-		pipeline := infoStyle.Render(viper.GetString("pipeline"))
+		pipeline := infoBoldStyle.Render(viper.GetString("pipeline"))
 		for _, build := range builds {
-			id := infoStyle.Render(build.ID)
-			name := infoStyle.Render(build.DisplayName)
-			rStyle := infoStyle
+			id := infoBoldStyle.Render(build.ID)
+			name := infoBoldStyle.Render(build.DisplayName)
+			rStyle := infoBoldStyle
 			if build.Result == "SUCCESS" {
 				rStyle = successStyle
 			} else if build.Result == "FAILURE" {
-				rStyle = errStyle
+				rStyle = failureStyle
 			}
 			result := rStyle.Render(build.Result)
-			fmt.Println(style.Render(fmt.Sprintf("%s: The status for [%s] on branch [%s] is [%s]", id, name, pipeline, result)))
+			fmt.Println(noStyle.Render(fmt.Sprintf("%s: The status for [%s] on branch [%s] is [%s]", id, name, pipeline, result)))
 		}
 
 		return nil

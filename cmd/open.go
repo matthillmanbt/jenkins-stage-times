@@ -29,6 +29,10 @@ var openCmd = &cobra.Command{
 		if runtime.GOOS == "windows" {
 			command = "start"
 		}
-		return Spawn(command, url).Wait()
+		proc, err := Spawn(command, url)
+		if err != nil {
+			return err
+		}
+		return proc.Wait()
 	},
 }

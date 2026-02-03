@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -14,8 +15,8 @@ var (
 	onlyNum bool
 	branch  string
 
-	searchProduct  = "ingredi"
-	displayProduct = "RS"
+	searchProduct  string
+	displayProduct string
 )
 
 func init() {
@@ -36,8 +37,11 @@ var latestCmd = &cobra.Command{
 	Long:  `Query Jenkins for the latest build of a branch for a product and print the result`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if isPRA {
-			searchProduct = "bpam"
-			displayProduct = "PRA"
+			searchProduct = viper.GetString("products.pra.search_name")
+			displayProduct = viper.GetString("products.pra.display_name")
+		} else {
+			searchProduct = viper.GetString("products.rs.search_name")
+			displayProduct = viper.GetString("products.rs.display_name")
 		}
 
 		if !strings.HasPrefix(branch, "origin/") {

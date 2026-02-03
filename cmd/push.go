@@ -25,9 +25,9 @@ var pushCmd = &cobra.Command{
 		buildNumber := strings.ToLower(args[0])
 
 		if buildNumber == "rs" || buildNumber == "pra" {
-			searchProduct := "ingredi"
+			searchProduct := viper.GetString("products.rs.search_name")
 			if buildNumber == "pra" {
-				searchProduct = "bpam"
+				searchProduct = viper.GetString("products.pra.search_name")
 			}
 			latestBuild, err := getLatestBuild(searchProduct, "origin/master")
 			if err != nil {
@@ -36,7 +36,8 @@ var pushCmd = &cobra.Command{
 			buildNumber = latestBuild.ID
 		}
 
-		verbose("Pushing [%s] to [%s.dev.bomgar.com]", buildNumber, args[1])
+		domain := viper.GetString("deployment.domain")
+		verbose("Pushing [%s] to [%s.%s]", buildNumber, args[1], domain)
 
 		query := map[string]string{
 			"PROJECT_NAME": viper.GetString("pipeline"),
@@ -68,6 +69,7 @@ var pushCmd = &cobra.Command{
 		path := u.Path[1:] + u.Fragment + u.RawQuery
 		verbose("Polling location [%s][%s]", location, path)
 		p := NewURLPoller(path)
+		defer p.Stop()
 
 		for res := range p.Response {
 			defer res.Body.Close()
@@ -80,7 +82,10 @@ var pushCmd = &cobra.Command{
 			buildArgs := []string{"monitor", "--bg", "--pipeline", viper.GetString("pipeline")}
 			buildArgs = append(buildArgs, strconv.Itoa(queue.Executable.Number))
 			verbose("Spawning and passing args [%+v]", buildArgs)
-			cmd := SpawnBG(buildArgs...)
+			cmd, err := SpawnBG(buildArgs...)
+			if err != nil {
+				return err
+			}
 
 			if err := cmd.Wait(); err != nil {
 				return err
