@@ -94,6 +94,13 @@ jenkins push <build_number_or_product> <subdomain>
 jenkins monitor <build_id> [<build_id2>...]
 ```
 
+**Skill Usage:**
+When Claude pushes a build, it should:
+1. Look for `debug_license.ini` at the root of the source tree
+2. If that file does not exist, ask for confirmation of the product and subdomain
+3. Read the existing INI file. In the `[General]` section, the `PRODUCT` key will have the product
+4. Also in the `[General]` section, the `WWWHOST` key will have the full URL. Strip off the ending `.dev.bomgar.com` to get the subdomain.
+
 ### Diagnose Build Failures
 
 ```bash
