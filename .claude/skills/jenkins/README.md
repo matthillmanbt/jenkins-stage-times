@@ -20,6 +20,20 @@ sudo cp jenkins /usr/local/bin/
 
 ### 2. Configure Credentials
 
+Setup `bt vault` to inject credentials from vault:
+ **Add ``jenkins-api`` to your personal vault**"
+```bash
+ mkdir -p ~/.sra-con/env
+ cat <<EOF > ~/.sra-con/env/jenkins.env
+ JENKINS_HOST=bt-vault://personal/jenkins-api/description
+ JENKINS_USER=bt-vault://personal/jenkins-api/username
+ JENKINS_KEY=bt-vault://personal/jenkins-api/password
+ EOF
+
+ alias jenkins="$HOME/.sra-con/CLI/bt vault run $HOME/.sra-con/env/jenkins.env -- jenkins"
+ ```
+
+Or setup environment variables directly:
 ```bash
 export JENKINS_HOST=https://jenkins.example.com
 export JENKINS_USER=your-username
@@ -190,7 +204,7 @@ The CLI can be used in scripts:
 ```bash
 #!/bin/bash
 # Trigger build and wait
-build_id=$(jenkins push main staging | grep "Build" | awk '{print $2}')
+build_id=$(jenkins buid <ingredi|bpam> <branch> | grep "Build" | awk '{print $2}')
 jenkins monitor "$build_id"
 
 # Check if it succeeded

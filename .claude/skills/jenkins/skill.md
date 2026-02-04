@@ -15,7 +15,19 @@ Perfect for repos that need to trigger Jenkins builds, wait for results, and ana
 
 ## Prerequisites
 
-1. **Jenkins credentials** configured via environment variables:
+1. **Jenkins credentials** configured via bt vault, environment variables, or yaml:
+ **Add ``jenkins-api`` to your personal vault**"
+   ```bash
+   mkdir -p ~/.sra-con/env
+   cat <<EOF > ~/.sra-con/env/jenkins.env
+   JENKINS_HOST=bt-vault://personal/jenkins-api/description
+   JENKINS_USER=bt-vault://personal/jenkins-api/username
+   JENKINS_KEY=bt-vault://personal/jenkins-api/password
+   EOF
+
+   alias jenkins="$HOME/.sra-con/CLI/bt vault run $HOME/.sra-con/env/jenkins.env -- jenkins"
+   ```
+   OR
    ```bash
    export JENKINS_HOST=https://your-jenkins-server.com
    export JENKINS_USER=your-username
@@ -153,7 +165,7 @@ jenkins build ingredi "$BRANCH"
 
 ```bash
 # Deploy a specific build to environment
-jenkins push 1234 dev-testing
+jenkins push 1234 dev-subdomain
 
 # It automatically monitors in background
 # You'll get a notification when complete
