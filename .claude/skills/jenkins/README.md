@@ -72,7 +72,8 @@ Claude will use the appropriate jenkins commands automatically.
 
 | Command | Purpose | Example |
 |---------|---------|---------|
-| `push` | Trigger build | `jenkins push 1234 dev-test` |
+| `build` | Trigger new build | `jenkins build ingredi feature/my-branch` |
+| `push` | Deploy existing build | `jenkins push 1234 dev-test` |
 | `monitor` | Watch build progress | `jenkins monitor 5678` |
 | `diagnose` | Analyze failures | `jenkins diagnose 5678` |
 | `failed` | List failed stages | `jenkins failed 5678` |

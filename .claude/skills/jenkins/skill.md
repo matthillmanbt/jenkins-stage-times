@@ -51,10 +51,30 @@ deployment:
 
 ## Commands
 
-### Start a Build
+### Trigger a New Build
 
 ```bash
-# Trigger a build and monitor until completion
+# Build the current branch
+jenkins build <product> <branch>
+
+# Products: ingredi (or rs), bpam (or pra)
+jenkins build ingredi feature/my-changes
+jenkins build rs main
+jenkins build bpam bugfix/issue-123
+```
+
+**Skill Usage:**
+When Claude triggers a build, it should:
+1. Get the current git branch: `git rev-parse --abbrev-ref HEAD`
+2. Check for unpushed changes: `git log @{u}.. --oneline`
+3. If unpushed changes exist, warn and ask for confirmation
+4. Check for running builds with: `jenkins status` or tracking prior builds from this session
+5. If prior builds are running, ask for confirmation before starting another
+
+### Deploy an Existing Build
+
+```bash
+# Deploy a specific build to an environment
 jenkins push <build_number_or_product> <subdomain>
 
 # Monitor an existing build
@@ -105,17 +125,33 @@ jenkins timing --longest
 
 ## Typical Workflows
 
-### Workflow 1: Trigger and Monitor a Build
+### Workflow 1: Build Current Branch
 
 ```bash
-# Start the build
+# Get current branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Check for unpushed changes
+git log @{u}.. --oneline
+
+# Trigger build for current branch
+jenkins build ingredi "$BRANCH"
+
+# Automatically monitors in background
+# You'll get a notification when complete
+```
+
+### Workflow 2: Deploy Existing Build
+
+```bash
+# Deploy a specific build to environment
 jenkins push 1234 dev-testing
 
 # It automatically monitors in background
 # You'll get a notification when complete
 ```
 
-### Workflow 2: Investigate a Failed Build
+### Workflow 3: Investigate a Failed Build
 
 ```bash
 # Get comprehensive diagnosis
@@ -128,7 +164,7 @@ jenkins diagnose 5678
 # - Summary for AI analysis
 ```
 
-### Workflow 3: Deep Dive on Specific Stage
+### Workflow 4: Deep Dive on Specific Stage
 
 ```bash
 # List all failed stages
@@ -142,23 +178,53 @@ jenkins stage-log 5678 stage-id-123
 
 When used as a skill in other repos:
 
-1. **Claude can trigger builds** when you ask to "start a build" or "deploy to dev"
+1. **Claude can trigger builds** when you ask to "build my changes" or "start a build"
+   - Automatically detects current git branch
+   - Checks for unpushed changes and warns before building
+   - Asks for confirmation if prior builds are still running
 2. **Claude monitors builds** in the background and notifies you when done
 3. **Claude diagnoses failures** automatically, showing you exactly what went wrong
 4. **Claude analyzes logs** to suggest fixes for common failure patterns
 
+### Safety Checks for Build Command
+
+Before triggering a build, Claude should:
+1. **Check git status**: `git status --porcelain` to ensure no uncommitted changes
+2. **Check for unpushed commits**: `git log @{u}.. --oneline`
+   - If unpushed changes exist, ask: "You have unpushed commits. Push them first or continue anyway?"
+3. **Track running builds**: Keep track of builds started in this session
+   - Before starting a new build, check if prior builds are complete
+   - If prior builds are running, ask: "Build #1234 is still running. Start another build anyway?"
+
 ## Examples
 
-### Example 1: Ask Claude to start a build
+### Example 1: Ask Claude to build your changes
 
 ```
-You: "Start a build for RS and deploy it to dev-testing"
+You: "Build my changes for RS"
 
-Claude uses: jenkins push rs dev-testing
+Claude checks:
+1. Current branch: feature/new-api
+2. Unpushed commits: 2 commits ahead of origin
+3. Asks: "You have 2 unpushed commits. Would you like to push them first?"
+
+You: "Yes, push them"
+
+Claude: git push
+Claude uses: jenkins build ingredi feature/new-api
 Claude monitors the build and notifies you when complete
 ```
 
-### Example 2: Ask Claude to investigate a failure
+### Example 2: Ask Claude to deploy an existing build
+
+```
+You: "Deploy build 1234 to dev-testing"
+
+Claude uses: jenkins push 1234 dev-testing
+Claude monitors the build and notifies you when complete
+```
+
+### Example 3: Ask Claude to investigate a failure
 
 ```
 You: "Build 1234 failed, can you figure out why?"
@@ -170,7 +236,7 @@ Claude analyzes the output and tells you:
 - Potential causes and fixes
 ```
 
-### Example 3: Monitor long-running build
+### Example 4: Monitor long-running build
 
 ```
 You: "Monitor build 5678 and let me know when it's done"
