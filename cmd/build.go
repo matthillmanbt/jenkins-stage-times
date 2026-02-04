@@ -7,6 +7,7 @@ import (
 	"jenkins/internal/jenkins"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,7 +26,8 @@ Product must be one of:
   - ingredi (or rs)
   - bpam (or pra)
 
-Branch is the TRYMAX_BRANCH to build (e.g., feature/my-branch)`,
+Branch is the TRYMAX_BRANCH to build (e.g., feature/my-branch).
+Note: "origin/" will be automatically prepended if not provided.`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		product := args[0]
@@ -41,6 +43,11 @@ Branch is the TRYMAX_BRANCH to build (e.g., feature/my-branch)`,
 			// Already valid
 		default:
 			return fmt.Errorf("invalid product: %s (must be 'ingredi', 'bpam', 'rs', or 'pra')", product)
+		}
+
+		// Prepend "origin/" to branch if not already present
+		if !strings.HasPrefix(branch, "origin/") {
+			branch = "origin/" + branch
 		}
 
 		verbose("Triggering build for product [%s] branch [%s]", product, branch)

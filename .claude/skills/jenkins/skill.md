@@ -58,9 +58,10 @@ deployment:
 jenkins build <product> <branch>
 
 # Products: ingredi (or rs), bpam (or pra)
-jenkins build ingredi feature/my-changes
-jenkins build rs main
-jenkins build bpam bugfix/issue-123
+# Branch: automatically prepends "origin/" if not provided
+jenkins build ingredi feature/my-changes      # Uses origin/feature/my-changes
+jenkins build rs main                         # Uses origin/main
+jenkins build bpam origin/bugfix/issue-123    # Uses origin/bugfix/issue-123 (already has prefix)
 ```
 
 **Skill Usage:**
@@ -128,15 +129,16 @@ jenkins timing --longest
 ### Workflow 1: Build Current Branch
 
 ```bash
-# Get current branch
+# Get current branch (without origin/ prefix)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Check for unpushed changes
 git log @{u}.. --oneline
 
-# Trigger build for current branch
+# Trigger build for current branch (origin/ will be added automatically)
 jenkins build ingredi "$BRANCH"
 
+# Example: If BRANCH=feature/my-work, Jenkins receives TRYMAX_BRANCH=origin/feature/my-work
 # Automatically monitors in background
 # You'll get a notification when complete
 ```
