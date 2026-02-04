@@ -67,7 +67,7 @@ func (p *URLPoller) run(c chan *http.Response, done chan bool) {
 			return
 		case <-p.ticker.C:
 			verbose("URLPoller querying URL %s", p.url)
-			if res, err := jenkinsClient.Request("GET", p.url); err == nil {
+			if res, err := jenkinsClient.Request(http.MethodGet, p.url); err == nil {
 				verbose("URLPoller calling handler with response for %s", p.url)
 				c <- res
 				p.ticker.Stop()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"jenkins/internal/formatting"
 	"jenkins/internal/jenkins"
+	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -350,7 +351,7 @@ func getStageInfo(stage jenkins.Stage) tea.Cmd {
 		vVerbose("getStageInfo() MSG")
 		if stage.Links.Log.HREF == "" {
 			vVerbose("  -> no Log HREF")
-			res, err := jenkinsClient.Request("GET", stage.Links.Self.HREF)
+			res, err := jenkinsClient.Request(http.MethodGet, stage.Links.Self.HREF)
 			if err != nil {
 				verbose("Request error")
 				return nil

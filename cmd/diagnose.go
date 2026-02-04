@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"jenkins/internal/formatting"
 	"jenkins/internal/jenkins"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -195,7 +196,7 @@ type stageFetchResult struct {
 func fetchStageWorker(jobs <-chan stageFetchJob, results chan<- stageFetchResult, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for job := range jobs {
-		res, err := jenkinsClient.Request("GET", job.stage.Links.Self.HREF)
+		res, err := jenkinsClient.Request(http.MethodGet, job.stage.Links.Self.HREF)
 		if err != nil {
 			results <- stageFetchResult{err: err}
 			continue
