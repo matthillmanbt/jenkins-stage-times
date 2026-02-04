@@ -91,6 +91,9 @@ jenkins diagnose <build_id>
 # Show more log context
 jenkins diagnose <build_id> --log-lines 100
 
+# Show all log context
+jenkins diagnose <build_id> --log-lines 0
+
 # Show all stages (not just failures)
 jenkins diagnose <build_id> --all
 ```
@@ -106,6 +109,9 @@ jenkins stage-log <build_id> <stage_id>
 
 # Show only last 50 lines of a stage log
 jenkins stage-log <build_id> <stage_id> --tail 50
+
+# Get the entire log (not the default trucated version) NOTE: this will return a lot of text, try the shorter logs first
+jenkins stage-log <build_id> <stage_id> --full
 
 # Get build status
 jenkins status -b <build_id>

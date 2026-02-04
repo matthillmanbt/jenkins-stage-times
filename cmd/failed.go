@@ -55,6 +55,7 @@ var failedCmd = &cobra.Command{
 			fmt.Printf("    Status:   %s\n", item.Stage.Status)
 			fmt.Printf("    Duration: %s\n", duration)
 			fmt.Printf("    Node:     %s\n", item.Stage.ExecNode)
+			fmt.Printf("    Log URL:  %s\n", item.Stage.Links.Log.HREF)
 			fmt.Println()
 		}
 
