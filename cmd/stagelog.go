@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"jenkins/internal/jenkins"
 	"net/http"
 	"strings"
@@ -12,8 +13,9 @@ import (
 )
 
 var (
-	tailLines int
-	headLines int
+	tailLines    int
+	headLines    int
+	fetchFullLog bool
 )
 
 func init() {
@@ -21,6 +23,7 @@ func init() {
 
 	stageLogCmd.Flags().IntVarP(&tailLines, "tail", "t", 0, "Show only the last N lines")
 	stageLogCmd.Flags().IntVarP(&headLines, "head", "n", 0, "Show only the first N lines")
+	stageLogCmd.Flags().BoolVarP(&fetchFullLog, "full", "f", false, "Fetch the full log without truncation")
 }
 
 var stageLogCmd = &cobra.Command{
@@ -55,22 +58,47 @@ var stageLogCmd = &cobra.Command{
 		if stage.Links.Log.HREF == "" {
 			return fmt.Errorf("no log available for this stage")
 		}
-
-		node, err := jenkinsClient.GetStageLog(stage.Links.Log.HREF)
-		if err != nil {
-			return fmt.Errorf("failed to get stage log: %w", err)
+		logURL := stage.Links.Log.HREF
+		if fetchFullLog {
+			logURL = fmt.Sprintf("job/%s/%s/execution/node/%s/log/?consoleFull", viper.GetString("pipeline"), buildID, stageID)
 		}
 
-		// Process output based on flags
-		output := node.Text
-		lines := strings.Split(output, "\n")
+		var lines []string
 
-		if tailLines > 0 && tailLines < len(lines) {
-			lines = lines[len(lines)-tailLines:]
-			fmt.Println(grayStyle.Render(fmt.Sprintf("(showing last %d lines)", tailLines)))
-		} else if headLines > 0 && headLines < len(lines) {
-			lines = lines[:headLines]
-			fmt.Println(grayStyle.Render(fmt.Sprintf("(showing first %d lines)", headLines)))
+		if !fetchFullLog {
+			node, err := jenkinsClient.GetStageLog(logURL)
+			if err != nil {
+				return fmt.Errorf("failed to get stage log: %w", err)
+			}
+			// Process output based on flags
+			output := node.Text
+			lines = strings.Split(output, "\n")
+			if tailLines > 0 && tailLines < len(lines) {
+				lines = lines[len(lines)-tailLines:]
+				fmt.Println(grayStyle.Render(fmt.Sprintf("(showing last %d lines)", tailLines)))
+			} else if headLines > 0 && headLines < len(lines) {
+				lines = lines[:headLines]
+				fmt.Println(grayStyle.Render(fmt.Sprintf("(showing first %d lines)", headLines)))
+			}
+		} else {
+			res, err := jenkinsClient.Request(http.MethodGet, logURL)
+			if err != nil {
+				return fmt.Errorf("failed to get full stage log: %w", err)
+			}
+			defer res.Body.Close()
+
+			var outputBuilder strings.Builder
+			_, err = io.Copy(&outputBuilder, res.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read full stage log: %w", err)
+			}
+
+			text, err := extractTextFromJenkinsHTML(outputBuilder.String())
+			if err != nil {
+				return err
+			}
+
+			lines = strings.Split(text, "\n")
 		}
 
 		// Print the log
@@ -80,6 +108,82 @@ var stageLogCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+// extractTextFromJenkinsHTML extracts plain text from Jenkins HTML console output
+// Jenkins returns HTML with <pre class="console-output"> containing the log with markup
+func extractTextFromJenkinsHTML(html string) (string, error) {
+	// Find the <pre class="console-output"> tag
+	preIdx := strings.Index(html, "console-output")
+	if preIdx == -1 {
+		return "", fmt.Errorf("failed to find <pre class=\"console-output\"> in response")
+	}
+
+	// Find the opening "<pre" before the class marker
+	openPreIdx := strings.LastIndex(html[:preIdx], "<pre")
+	if openPreIdx == -1 {
+		return "", fmt.Errorf("failed to locate opening <pre> tag")
+	}
+
+	// Find the closing ">" of the opening tag
+	openTagEnd := strings.Index(html[openPreIdx:], ">")
+	if openTagEnd == -1 {
+		return "", fmt.Errorf("failed to locate end of <pre> opening tag")
+	}
+	contentStart := openPreIdx + openTagEnd + 1
+
+	// Find the closing </pre>
+	closePreRel := strings.Index(html[contentStart:], "</pre>")
+	if closePreRel == -1 {
+		return "", fmt.Errorf("failed to locate closing </pre> tag")
+	}
+	contentEnd := contentStart + closePreRel
+
+	contentHTML := html[contentStart:contentEnd]
+
+	// Strip HTML tags (e.g., spans for ANSI coloring)
+	var textBuilder strings.Builder
+	inTag := false
+	var tagBuilder strings.Builder
+
+	for i := 0; i < len(contentHTML); i++ {
+		c := contentHTML[i]
+
+		if inTag {
+			if c == '>' {
+				inTag = false
+				// Preserve line breaks for <br> tags
+				tag := strings.ToLower(strings.TrimSpace(tagBuilder.String()))
+				if strings.HasPrefix(tag, "br") || strings.HasPrefix(tag, "/br") {
+					textBuilder.WriteByte('\n')
+				}
+				tagBuilder.Reset()
+				continue
+			}
+			tagBuilder.WriteByte(c)
+			continue
+		}
+
+		if c == '<' {
+			inTag = true
+			continue
+		}
+
+		textBuilder.WriteByte(c)
+	}
+
+	// Unescape common HTML entities
+	text := textBuilder.String()
+	text = strings.NewReplacer(
+		"&lt;", "<",
+		"&gt;", ">",
+		"&amp;", "&",
+		"&quot;", `"`,
+		"&#39;", "'",
+		"&nbsp;", " ",
+	).Replace(text)
+
+	return text, nil
 }
 
 // findStageByID recursively searches for a stage by ID
