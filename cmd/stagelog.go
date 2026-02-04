@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"jenkins/internal/jenkins"
+	"net/http"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -81,12 +83,30 @@ var stageLogCmd = &cobra.Command{
 }
 
 // findStageByID recursively searches for a stage by ID
+// Fetches full stage details via API to access nested children
 func findStageByID(stages []jenkins.Stage, stageID string) *jenkins.Stage {
-	for _, stage := range stages {
+	for _, s := range stages {
+		// Fetch full stage details to get children
+		res, err := jenkinsClient.Request(http.MethodGet, s.Links.Self.HREF)
+		if err != nil {
+			verbose("Error fetching stage %s: %v", s.ID, err)
+			continue
+		}
+
+		var stage jenkins.Stage
+		if err := json.NewDecoder(res.Body).Decode(&stage); err != nil {
+			res.Body.Close()
+			verbose("Error decoding stage %s: %v", s.ID, err)
+			continue
+		}
+		res.Body.Close()
+
+		// Check if this is the stage we're looking for
 		if stage.ID == stageID {
 			return &stage
 		}
-		// Search nested stages
+
+		// Recursively search nested stages
 		if len(stage.StageFlowNodes) > 0 {
 			if found := findStageByID(stage.StageFlowNodes, stageID); found != nil {
 				return found
