@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"jenkins/internal/jenkins"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,9 +31,12 @@ var monitorCmd = &cobra.Command{
 	Use:   "monitor [build_id] [...build_id]",
 	Short: "Monitor a build and print a message when it completes of a given build IDs",
 	Long:  `Query Jenkins for the status of a build given the build ID until it finishes`,
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !doNotSpawn {
-			buildArgs := []string{"monitor", "--bg", "--pipeline", viper.GetString("pipeline")}
+			pipeline := viper.GetString("pipeline")
+			fmt.Printf("Monitoring build(s) %s on pipeline [%s]...\n", strings.Join(args, ", "), pipeline)
+			buildArgs := []string{"monitor", "--bg", "--pipeline", pipeline}
 			buildArgs = append(buildArgs, args...)
 			verbose("Spawning and passing args [%+v]", buildArgs)
 			cmd, err := SpawnBG(buildArgs...)
@@ -93,6 +97,7 @@ var monitorCmd = &cobra.Command{
 			case err := <-er:
 				return err
 			case <-done:
+				fmt.Println(noStyle.Render(fmt.Sprintf("Done monitoring %d build(s) on pipeline [%s].", len(args), pipeline)))
 				return nil
 			}
 		}

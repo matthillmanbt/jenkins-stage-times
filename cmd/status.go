@@ -17,16 +17,24 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 
 	statusCmd.Flags().StringArrayVarP(&buildIDs, "build", "b", []string{}, "Build ID")
-	statusCmd.MarkFlagRequired("build")
 }
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status [build_id] [...build_id]",
 	Short: "Print the status of a given build ID",
-	Long:  `Query Jenkins for the status of a build build given the build ID`,
+	Long: `Query Jenkins for the status of a build given the build ID.
+
+Build IDs can be passed as positional arguments or with the -b flag:
+  jenkins status 1234 5678
+  jenkins status -b 1234 -b 5678`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		allIDs := append(buildIDs, args...)
+		if len(allIDs) == 0 {
+			return fmt.Errorf("at least one build ID is required (as argument or with -b flag)")
+		}
+
 		builds := []*jenkins.WorkflowRun{}
-		for _, buildID := range buildIDs {
+		for _, buildID := range allIDs {
 			build, err := jenkinsClient.GetBuildInfo(viper.GetString("pipeline"), buildID)
 			if err != nil {
 				verbose("getBuildInfo returned error")

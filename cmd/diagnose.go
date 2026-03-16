@@ -94,8 +94,9 @@ var diagnoseCmd = &cobra.Command{
 		fmt.Println(infoBoldStyle.Render("FAILED STAGES:"))
 		for i, item := range failedLeaves {
 			fullPath := strings.Join(append(item.Path, item.Stage.Name), " > ")
-			fmt.Printf("  %d. %s (Duration: %s)\n",
+			fmt.Printf("  %d. [%s] %s (Duration: %s)\n",
 				i+1,
+				item.Stage.ID,
 				fullPath,
 				formatting.Duration(time.Duration(item.Stage.Duration*int(time.Millisecond))))
 		}
@@ -148,7 +149,7 @@ var diagnoseCmd = &cobra.Command{
 			fmt.Println("  Failed stages:")
 			for _, item := range failedLeaves {
 				fullPath := strings.Join(append(item.Path, item.Stage.Name), " > ")
-				fmt.Printf("    - %s (%s)\n", fullPath, item.Stage.Status)
+				fmt.Printf("    - [%s] %s (%s)\n", item.Stage.ID, fullPath, item.Stage.Status)
 			}
 		}
 		fmt.Println("═" + strings.Repeat("═", 78) + "═")

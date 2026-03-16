@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"time"
 )
 
@@ -70,11 +71,21 @@ func (p *URLPoller) run(c chan *http.Response, done chan bool) {
 			if res, err := jenkinsClient.Request(http.MethodGet, p.url); err == nil {
 				verbose("URLPoller calling handler with response for %s", p.url)
 				c <- res
-				p.ticker.Stop()
-				return
 			}
 		}
 	}
+}
+
+var queueNumberRE = regexp.MustCompile(`/queue/item/(\d+)`)
+
+// QueueNumberFromPath extracts the queue item number from a Jenkins queue path.
+// Returns the queue number string, or empty string if not found.
+func QueueNumberFromPath(path string) string {
+	match := queueNumberRE.FindStringSubmatch(path)
+	if len(match) > 1 {
+		return match[1]
+	}
+	return ""
 }
 
 // Stop stops the URLPoller and cleans up resources

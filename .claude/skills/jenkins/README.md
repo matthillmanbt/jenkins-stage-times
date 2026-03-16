@@ -92,7 +92,8 @@ Claude will use the appropriate jenkins commands automatically.
 | `diagnose` | Analyze failures | `jenkins diagnose 5678` |
 | `failed` | List failed stages | `jenkins failed 5678` |
 | `stage-log` | Get stage logs | `jenkins stage-log 5678 stage-id` |
-| `status` | Build status | `jenkins status -b 5678` |
+| `status` | Build status | `jenkins status 5678` |
+| `queue` | Resolve queue to build | `jenkins queue 12345` |
 | `timing` | Performance analysis | `jenkins timing --longest` |
 
 ## Use Cases

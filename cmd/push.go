@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"jenkins/internal/jenkins"
 	"net/url"
@@ -60,26 +61,44 @@ var pushCmd = &cobra.Command{
 			verbose("Body [%s]", string(bodyBytes))
 		}
 
+		fmt.Printf("Push queued successfully!\n")
+		fmt.Printf("Build:     %s\n", buildNumber)
+		fmt.Printf("Target:    %s.%s\n", args[1], domain)
+		fmt.Println()
+
 		location := res.Header.Get("Location")
 		u, err := url.Parse(location)
 		if err != nil {
 			return err
 		}
 		path := u.Path[1:] + u.Fragment + u.RawQuery
-		verbose("Polling location [%s][%s]", location, path)
+		queueNumber := QueueNumberFromPath(location)
+		verbose("Polling location [%s][%s] (queue #%s)", location, path, queueNumber)
 		p := NewURLPoller(path)
 		defer p.Stop()
 
 		for res := range p.Response {
-			defer res.Body.Close()
 			var queue jenkins.QueueItem
 			if err := json.NewDecoder(res.Body).Decode(&queue); err != nil {
 				verbose("JSON decode error trying to parse build id [%v]", err)
-				break
+				res.Body.Close()
+				fmt.Printf("Could not resolve queue item %s to a build number.\n", queueNumber)
+				fmt.Printf("Resolve manually with: jenkins queue %s\n", queueNumber)
+				return nil
+			}
+			res.Body.Close()
+
+			if queue.Executable.Number == 0 {
+				verbose("Build not yet started, still queued...")
+				continue
 			}
 
-			buildArgs := []string{"monitor", "--bg", "--pipeline", viper.GetString("pipeline")}
-			buildArgs = append(buildArgs, strconv.Itoa(queue.Executable.Number))
+			buildSiteNumber := strconv.Itoa(queue.Executable.Number)
+			fmt.Printf("build-site started: #%s\n", buildSiteNumber)
+			fmt.Printf("Monitor with: jenkins monitor --pipeline build-site %s\n", buildSiteNumber)
+
+			buildArgs := []string{"monitor", "--bg", "--pipeline", "build-site"}
+			buildArgs = append(buildArgs, buildSiteNumber)
 			verbose("Spawning and passing args [%+v]", buildArgs)
 			cmd, err := SpawnBG(buildArgs...)
 			if err != nil {
@@ -89,6 +108,8 @@ var pushCmd = &cobra.Command{
 			if err := cmd.Wait(); err != nil {
 				return err
 			}
+
+			break
 		}
 
 		return nil

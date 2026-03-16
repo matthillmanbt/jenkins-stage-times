@@ -91,16 +91,25 @@ Note: "origin/" will be automatically prepended if not provided.`,
 			return err
 		}
 		path := u.Path[1:] + u.Fragment + u.RawQuery
-		verbose("Polling queue location [%s]", path)
+		queueNumber := QueueNumberFromPath(location)
+		verbose("Polling queue location [%s] (queue #%s)", path, queueNumber)
 		p := NewURLPoller(path)
 		defer p.Stop()
 
 		for res := range p.Response {
-			defer res.Body.Close()
 			var queue jenkins.QueueItem
 			if err := json.NewDecoder(res.Body).Decode(&queue); err != nil {
 				verbose("JSON decode error trying to parse build id [%v]", err)
-				break
+				res.Body.Close()
+				fmt.Printf("Could not resolve queue item %s to a build number.\n", queueNumber)
+				fmt.Printf("Resolve manually with: jenkins queue %s\n", queueNumber)
+				return nil
+			}
+			res.Body.Close()
+
+			if queue.Executable.Number == 0 {
+				verbose("Build not yet started, still queued...")
+				continue
 			}
 
 			buildNumber := strconv.Itoa(queue.Executable.Number)

@@ -132,8 +132,13 @@ jenkins stage-log <build_id> <stage_id> --tail 50
 # Get the entire log (not the default trucated version) NOTE: this will return a lot of text, try the shorter logs first
 jenkins stage-log <build_id> <stage_id> --full
 
-# Get build status
-jenkins status -b <build_id>
+# Get build status (positional args or -b flag)
+jenkins status <build_id> [<build_id2>...]
+jenkins status -b <build_id> -b <build_id2>
+
+# Resolve a queue number to a build number
+# (useful if build/push couldn't determine the build number automatically)
+jenkins queue <queue_number>
 ```
 
 ### Analyze Performance
