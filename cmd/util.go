@@ -68,10 +68,18 @@ func (p *URLPoller) run(c chan *http.Response, done chan bool) {
 			return
 		case <-p.ticker.C:
 			verbose("URLPoller querying URL %s", p.url)
-			if res, err := jenkinsClient.Request(http.MethodGet, p.url); err == nil {
-				verbose("URLPoller calling handler with response for %s", p.url)
-				c <- res
+			res, err := jenkinsClient.Request(http.MethodGet, p.url)
+			if err != nil {
+				verbose("URLPoller request error for %s: %v", p.url, err)
+				continue
 			}
+			if res.StatusCode < 200 || res.StatusCode >= 300 {
+				verbose("URLPoller non-success status %d for %s", res.StatusCode, p.url)
+				res.Body.Close()
+				continue
+			}
+			verbose("URLPoller calling handler with response for %s", p.url)
+			c <- res
 		}
 	}
 }

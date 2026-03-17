@@ -127,6 +127,6 @@ type ExecutableItem struct {
 
 // QueueItem represents an item in the Jenkins build queue
 type QueueItem struct {
-	ID         string
+	ID         int
 	Executable ExecutableItem
 }
