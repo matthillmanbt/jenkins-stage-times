@@ -76,6 +76,23 @@ deployment:
 
 ## Commands
 
+### Preflight Check (safe, no side effects)
+
+```bash
+# Verify Jenkins API connectivity and environment setup
+jenkins check
+
+# With verbose output to debug credential/connectivity issues
+jenkins check -v
+```
+
+Perfect for running before expensive operations to ensure your environment is properly configured. Returns:
+- ✓ Success message if connectivity is good
+- Host, user, and Jenkins version information
+- Clear error messages if credentials or connectivity are wrong
+
+**Skill Usage:** Run this first if you get connectivity errors with other commands, or use it to validate environment setup before triggering builds.
+
 ### Trigger a New Build (EXPENSIVE)
 
 ```bash
@@ -234,13 +251,14 @@ jenkins stage-log 5678 stage-id-123
 
 When used as a skill in other repos:
 
-1. **Claude can trigger builds** when you ask to "build my changes" or "start a build"
+1. **Preflight check with `jenkins check`** to verify credentials and Jenkins connectivity before running expensive operations
+2. **Claude can trigger builds** when you ask to "build my changes" or "start a build"
    - Automatically detects current git branch
    - Checks for unpushed changes and warns before building
    - Asks for confirmation if prior builds are still running
-2. **Claude monitors builds** in the background and notifies you when done
-3. **Claude diagnoses failures** automatically, showing you exactly what went wrong
-4. **Claude analyzes logs** to suggest fixes for common failure patterns
+3. **Claude monitors builds** in the background and notifies you when done
+4. **Claude diagnoses failures** automatically, showing you exactly what went wrong
+5. **Claude analyzes logs** to suggest fixes for common failure patterns
 
 ### Safety Checks for Build and Push Commands
 

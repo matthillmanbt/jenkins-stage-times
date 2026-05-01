@@ -220,3 +220,24 @@ func (c *Client) TriggerBuild(job string, params map[string]string) (*http.Respo
 
 	return c.Request(http.MethodPost, path, params)
 }
+
+// GetSystemInfo retrieves basic Jenkins system information for connectivity verification
+// It extracts the Jenkins version from the X-Jenkins response header
+func (c *Client) GetSystemInfo() (string, error) {
+	res, err := c.Request(http.MethodGet, "api/json")
+	if err != nil {
+		c.log("Request error")
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Jenkins API returned status %d", res.StatusCode)
+	}
+
+	// Jenkins returns the version in the X-Jenkins response header
+	version := res.Header.Get("X-Jenkins")
+	c.log("Jenkins version from header: %s", version)
+
+	return version, nil
+}
