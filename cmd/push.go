@@ -51,14 +51,16 @@ var pushCmd = &cobra.Command{
 			verbose("Request error")
 			return err
 		}
+		defer res.Body.Close()
 
-		{
-			defer res.Body.Close()
-			bodyBytes, err := io.ReadAll(res.Body)
-			if err != nil {
-				return err
-			}
-			verbose("Body [%s]", string(bodyBytes))
+		bodyBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		verbose("Body [%s]", string(bodyBytes))
+
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			return fmt.Errorf("jenkins returned HTTP %d: %s", res.StatusCode, string(bodyBytes))
 		}
 
 		fmt.Printf("Push queued successfully!\n")

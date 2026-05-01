@@ -63,14 +63,16 @@ Note: "origin/" will be automatically prepended if not provided.`,
 			verbose("Request error")
 			return err
 		}
+		defer res.Body.Close()
 
-		{
-			defer res.Body.Close()
-			bodyBytes, err := io.ReadAll(res.Body)
-			if err != nil {
-				return err
-			}
-			verbose("Response body [%s]", string(bodyBytes))
+		bodyBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		verbose("Response body [%s]", string(bodyBytes))
+
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			return fmt.Errorf("jenkins returned HTTP %d: %s", res.StatusCode, string(bodyBytes))
 		}
 
 		// Get the queue location from the response

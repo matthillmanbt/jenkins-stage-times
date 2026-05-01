@@ -61,9 +61,22 @@ deployment:
   domain: "dev.example.com"
 ```
 
+## Expensive Actions
+
+`jenkins build` and `jenkins push` are **expensive, side-effect-producing commands** that trigger real CI/CD jobs. They MUST be treated with care:
+
+### CRITICAL RULES for build and push
+
+1. **Exit code 0 = the API call succeeded.** The build/push has been queued. Do NOT re-run the command. Running it again will trigger a SECOND build/push.
+2. **Exit code non-zero = the API call failed.** The build was NOT queued. Report the error to the user.
+3. **After a successful build/push, the command prints a build number or queue number.** Record whichever is printed — you will need it to check status later.
+4. **If the command prints "Could not resolve queue item X to a build number"**, it still exited 0 — the build WAS queued, the CLI just couldn't resolve the queue to a build number. Use `jenkins queue <queue_number>` to resolve it. If that also fails, ask the user.
+5. **NEVER re-run build or push to "check if it worked."** These commands are not idempotent. Use `jenkins status <build_id>`, `jenkins latest`, or `jenkins queue <queue_number>` to check on a build.
+6. **Before running build/push again, verify the prior build is COMPLETE** using `jenkins status <build_id>`. If you cannot locate the build (no build number, queue resolution failed), ask the user before doing anything else.
+
 ## Commands
 
-### Trigger a New Build
+### Trigger a New Build (EXPENSIVE)
 
 ```bash
 # Build the current branch
@@ -83,8 +96,10 @@ When Claude triggers a build, it should:
 3. If unpushed changes exist, warn and ask for confirmation
 4. Check for running builds with: `jenkins status` or tracking prior builds from this session
 5. If prior builds are running, ask for confirmation before starting another
+6. Run `jenkins build` exactly ONCE. If exit code is 0, the build is queued — do not retry
+7. Record the build number (or queue number) from the output for later status checks
 
-### Deploy an Existing Build
+### Deploy an Existing Build (EXPENSIVE)
 
 ```bash
 # Deploy a specific build to an environment
@@ -100,6 +115,23 @@ When Claude pushes a build, it should:
 2. If that file does not exist, ask for confirmation of the product and subdomain
 3. Read the existing INI file. In the `[General]` section, the `PRODUCT` key will have the product
 4. Also in the `[General]` section, the `WWWHOST` key will have the full URL. Strip off the ending `.dev.bomgar.com` to get the subdomain.
+5. Run `jenkins push` exactly ONCE. If exit code is 0, the push is queued — do not retry
+6. Record the build-site number (or queue number) from the output for later status checks
+
+### Checking Build Status (safe, read-only)
+
+Use these commands freely to check on builds without side effects:
+
+```bash
+# Check if a build is still running or completed
+jenkins status <build_id>
+
+# Resolve a queue number to a build number
+jenkins queue <queue_number>
+
+# Get the latest build for a product
+jenkins latest --rs    # or --pra
+```
 
 ### Diagnose Build Failures
 
@@ -131,14 +163,6 @@ jenkins stage-log <build_id> <stage_id> --tail 50
 
 # Get the entire log (not the default trucated version) NOTE: this will return a lot of text, try the shorter logs first
 jenkins stage-log <build_id> <stage_id> --full
-
-# Get build status (positional args or -b flag)
-jenkins status <build_id> [<build_id2>...]
-jenkins status -b <build_id> -b <build_id2>
-
-# Resolve a queue number to a build number
-# (useful if build/push couldn't determine the build number automatically)
-jenkins queue <queue_number>
 ```
 
 ### Analyze Performance
@@ -218,15 +242,23 @@ When used as a skill in other repos:
 3. **Claude diagnoses failures** automatically, showing you exactly what went wrong
 4. **Claude analyzes logs** to suggest fixes for common failure patterns
 
-### Safety Checks for Build Command
+### Safety Checks for Build and Push Commands
 
-Before triggering a build, Claude should:
+Before triggering a build or push, Claude MUST:
 1. **Check git status**: `git status --porcelain` to ensure no uncommitted changes
 2. **Check for unpushed commits**: `git log @{u}.. --oneline`
    - If unpushed changes exist, ask: "You have unpushed commits. Push them first or continue anyway?"
-3. **Track running builds**: Keep track of builds started in this session
-   - Before starting a new build, check if prior builds are complete
-   - If prior builds are running, ask: "Build #1234 is still running. Start another build anyway?"
+3. **Check for prior builds from this session**:
+   - If a prior build/push was triggered this session, check its status with `jenkins status <build_id>` first
+   - If the build is still running, ask: "Build #1234 is still running. Start another build anyway?"
+   - If you lost track of the build number, try `jenkins queue <queue_number>` to resolve it
+   - If you cannot locate the build at all, ask the user before proceeding
+
+After triggering a build or push:
+4. **Exit code 0 means success** — the job is queued. NEVER re-run the command.
+5. **Exit code non-zero means failure** — the job was NOT queued. Report the error.
+6. **Record the build/queue number** from stdout for future status checks.
+7. **To check progress**, use `jenkins status <build_id>` — never re-run build/push.
 
 ## Examples
 
