@@ -14,8 +14,11 @@ import (
 )
 
 func init() {
+	pushCmd.Flags().StringArrayVarP(&pushParams, "param", "P", nil, "extra job parameter as KEY=VALUE (repeatable)")
 	rootCmd.AddCommand(pushCmd)
 }
+
+var pushParams []string
 
 var pushCmd = &cobra.Command{
 	Use:   "push [build_id] [subdomain]",
@@ -44,6 +47,9 @@ var pushCmd = &cobra.Command{
 			"PROJECT_NAME": viper.GetString("pipeline"),
 			"BUILD_NUMBER": buildNumber,
 			"SUBDOMAIN":    args[1],
+		}
+		if err := MergeParams(query, pushParams); err != nil {
+			return err
 		}
 		vVerbose("build-site params [%#+v]", query)
 		res, err := jenkinsClient.TriggerBuild("build-site", query)

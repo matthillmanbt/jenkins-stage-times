@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -14,6 +15,20 @@ const (
 	// DefaultPollInterval is the default interval for URLPoller to check for responses
 	DefaultPollInterval = 3 * time.Second
 )
+
+// MergeParams parses repeated KEY=VALUE flag values and merges them into
+// params, overriding any defaults with the same key. Values may contain '=';
+// only the first one splits.
+func MergeParams(params map[string]string, kvs []string) error {
+	for _, kv := range kvs {
+		key, value, found := strings.Cut(kv, "=")
+		if !found || key == "" {
+			return fmt.Errorf("invalid parameter %q (expected KEY=VALUE)", kv)
+		}
+		params[key] = value
+	}
+	return nil
+}
 
 // SpawnBG spawns the current executable in the background with the given arguments
 func SpawnBG(args ...string) (*exec.Cmd, error) {

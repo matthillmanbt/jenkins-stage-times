@@ -14,8 +14,11 @@ import (
 )
 
 func init() {
+	buildCmd.Flags().StringArrayVarP(&buildParams, "param", "P", nil, "extra job parameter as KEY=VALUE (repeatable), e.g. -P CAPTURE_IB_LOGS=true")
 	rootCmd.AddCommand(buildCmd)
 }
+
+var buildParams []string
 
 var buildCmd = &cobra.Command{
 	Use:   "build [product] [branch]",
@@ -27,7 +30,11 @@ Product must be one of:
   - bpam (or pra)
 
 Branch is the TRYMAX_BRANCH to build (e.g., feature/my-branch).
-Note: "origin/" will be automatically prepended if not provided.`,
+Note: "origin/" will be automatically prepended if not provided.
+
+Pass additional job parameters with repeated -P KEY=VALUE flags, e.g.:
+  jenkins build ingredi my-branch -P CAPTURE_IB_LOGS=true -P BUILD_MAC=false
+Explicit -P values override the defaults (PRODUCT, TRYMAX_BRANCH).`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		product := args[0]
@@ -55,6 +62,9 @@ Note: "origin/" will be automatically prepended if not provided.`,
 		params := map[string]string{
 			"PRODUCT":       product,
 			"TRYMAX_BRANCH": branch,
+		}
+		if err := MergeParams(params, buildParams); err != nil {
+			return err
 		}
 		vVerbose("Build params [%#+v]", params)
 

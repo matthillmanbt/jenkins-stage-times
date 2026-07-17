@@ -61,3 +61,41 @@ func TestSpawnSuccess(t *testing.T) {
 		t.Errorf("command failed: %v", err)
 	}
 }
+
+func TestMergeParams(t *testing.T) {
+	params := map[string]string{"PRODUCT": "ingredi", "TRYMAX_BRANCH": "origin/master"}
+
+	err := MergeParams(params, []string{
+		"CAPTURE_IB_LOGS=true",
+		"TRYMAX_BRANCH=origin/feature/x", // overrides default
+		"WEB_BRANCH=",                    // empty value is allowed
+		"OPTS=a=b",                       // value may contain '='
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := map[string]string{
+		"PRODUCT":         "ingredi",
+		"TRYMAX_BRANCH":   "origin/feature/x",
+		"CAPTURE_IB_LOGS": "true",
+		"WEB_BRANCH":      "",
+		"OPTS":            "a=b",
+	}
+	for k, v := range want {
+		if params[k] != v {
+			t.Errorf("params[%q] = %q, want %q", k, params[k], v)
+		}
+	}
+	if len(params) != len(want) {
+		t.Errorf("params has %d entries, want %d", len(params), len(want))
+	}
+}
+
+func TestMergeParamsInvalid(t *testing.T) {
+	for _, kv := range []string{"NOVALUE", "=missing-key", ""} {
+		if err := MergeParams(map[string]string{}, []string{kv}); err == nil {
+			t.Errorf("expected error for %q, got nil", kv)
+		}
+	}
+}
