@@ -104,7 +104,14 @@ jenkins build <product> <branch>
 jenkins build ingredi feature/my-changes      # Uses origin/feature/my-changes
 jenkins build rs main                         # Uses origin/main
 jenkins build bpam origin/bugfix/issue-123    # Uses origin/bugfix/issue-123 (already has prefix)
+
+# Pass arbitrary pipeline parameters with repeatable -P KEY=VALUE flags
+# (explicit -P values override the defaults PRODUCT/TRYMAX_BRANCH)
+jenkins build ingredi my-branch -P CAPTURE_IB_LOGS=true     # archive IncrediBuild .ib.log/.ib_mon artifacts
+jenkins build ingredi my-branch -P BUILD_MAC=false -P BUILD_LINUX=false   # skip platform legs
 ```
+
+Useful master-pipeline parameters: `CAPTURE_IB_LOGS` (default false; archives `build/incredibuild/**` IncrediBuild logs for cache/timing analysis), `BUILD_WINDOWS`/`BUILD_LINUX`/`BUILD_MAC`/`BUILD_SERVER` (default true), `WIPE_WORKSPACE`, `IS_PATCH_BUILD`, `WEB_BRANCH`/`WEB_CONSOLE_BRANCH`/`CLICK_TO_CHAT_BRANCH` (companion repo overrides). List all: `curl -su "$JENKINS_USER:$JENKINS_KEY" "$JENKINS_HOST/job/master/api/json?tree=property[parameterDefinitions[name,type,defaultParameterValue[value]]]"`. `-P` also works on `jenkins push` for build-site parameters.
 
 **Skill Usage:**
 When Claude triggers a build, it should:
