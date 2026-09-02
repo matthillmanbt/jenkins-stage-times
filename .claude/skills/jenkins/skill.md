@@ -1,3 +1,16 @@
+---
+name: jenkins
+description: >
+  Jenkins build management for triggering builds, monitoring progress, and
+  diagnosing failures.
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+  - AskUserQuestion
+---
+
 # Jenkins Build Management Skill
 
 Comprehensive Jenkins integration for triggering builds, monitoring progress, and diagnosing failures.
